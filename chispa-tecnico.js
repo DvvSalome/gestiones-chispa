@@ -10,7 +10,7 @@
  * Sin data-endpoint, la solicitud sale por WhatsApp al número de la tienda (data-whatsapp lo cambia).
  *
  * La mascota se asoma por el borde de la tarjeta, como la de TARGET: el Técnico (rayo con casco) atiende, y el Medidor
- * y la Ingeniera hacen cameo según el caso. Cada uno es una hoja de sprites con una pose por acción (sprites/*-arte.webp,
+ * y la Ingeniera hacen cameo según el caso. Cada uno es una hoja de sprites con una pose por acción (sprites/*-arcilla.webp,
  * ilustración de ChatGPT recortada con sprites/recortar.py); con movimiento reducido no sube ni respira, solo cambia de pose.
  */
 (function () {
@@ -91,9 +91,10 @@
   // Los mismos campos, botones y colores de la tienda (DM Sans, lima #c9e400, campos de 48 px con borde de 2 px,
   // botones píldora), en claro y en oscuro, para que se lea como parte de ella.
   const css = `
-.cht{--t:#12140a;--fondo:#fff;--borde:#12140a;--campo:#6f7660;--linea:#d3d7c2;--suave:#565c46;--acento:#3b4f00;--lima:#c9e400;--error:#b42318;position:relative;margin:120px 16px 16px;font:inherit;color:var(--t);scroll-margin-top:190px}
+.cht{--t:#12140a;--fondo:#fff;--borde:#12140a;--campo:#6f7660;--linea:#d3d7c2;--suave:#565c46;--acento:#3b4f00;--lima:#c9e400;--error:#b42318;position:relative;margin:142px 16px 16px;font:inherit;color:var(--t);scroll-margin-top:190px}
 [data-theme=dark] .cht{--t:#eef1e2;--fondo:#171a0f;--borde:#c9e400;--campo:#7e856c;--linea:#343a26;--suave:#a5ab93;--acento:#c9e400;--error:#ff9b8f}
-.pedido__lineas > .cht{margin:120px 0 8px}
+.pedido__lineas > .cht{margin:142px 0 8px}
+@media(max-width:600px){.cht{margin-top:126px}.pedido__lineas > .cht{margin-top:126px}}
 .cht *{box-sizing:border-box}
 .cht [hidden]{display:none!important}
 .cht-card{position:relative;background:var(--fondo);border:2px solid var(--borde);border-radius:18px;padding:20px}
@@ -146,33 +147,36 @@
 .cht-resumen .cht-enlace{margin:0;padding:4px 0}
 .cht-ok{display:flex;gap:12px;align-items:flex-start;margin-right:-8px}
 .cht-ok svg{flex:none;margin-top:4px;color:var(--acento)}
-/* la mascota: se asoma por el borde de arriba de la tarjeta; lo que queda por debajo del borde no se ve */
-.cht-mascota{position:absolute;bottom:100%;left:var(--mx,22%);width:var(--w,98px);height:var(--ver,96px);margin-left:calc(var(--w,98px) * var(--ax,.5) * -1);overflow:hidden;pointer-events:none;user-select:none}
+/* la mascota de arcilla se asoma por el borde de arriba de la tarjeta, como la de TARGET: su línea del borde (--ay)
+   queda sobre el borde de la tarjeta y los dedos cuelgan por delante. Mientras sube o se esconde se recorta en esa línea. */
+.cht-mascota{position:absolute;left:var(--mx,22%);bottom:calc(100% - var(--h,120px) * (1 - var(--ay,.8)));width:var(--w,98px);height:var(--h,120px);margin-left:calc(var(--w,98px) * var(--ax,.5) * -1);pointer-events:none;user-select:none;filter:drop-shadow(0 6px 10px rgba(18,20,10,.12))}
 .cht-sube{position:absolute;inset:0}
-.cht-pj{position:absolute;left:0;top:0;width:var(--w);height:var(--h);background-repeat:no-repeat;background-size:calc(var(--w) * 6) var(--h);transform-origin:50% 100%;animation:cht-respirar 4.8s ease-in-out infinite}
+.cht-mascota[data-recorte] .cht-sube{clip-path:inset(-60% -60% calc((1 - var(--ay)) * 100%) -60%)}
+.cht-pj{position:absolute;inset:0;background-repeat:no-repeat;background-size:calc(var(--w) * 6) var(--h);transform-origin:calc(var(--ax) * 100%) calc(var(--ay) * 100%);animation:cht-respirar 4.8s ease-in-out infinite}
 @keyframes cht-respirar{50%{transform:scale(1.008,1.016)}}
 @media(prefers-reduced-motion:reduce){.cht-pj{animation:none}}
 `;
 
-  // ── La mascota: hojas de sprites (ilustración de ChatGPT), una pose por acción ─────────────────────────────
+  // ── La mascota: personajes de arcilla asomados (estilo TARGET), una pose por acción ───────────────────────
   // El Técnico atiende; el Medidor hace cameo en los servicios de medición y la Ingeniera cuando escribe una persona del
-  // equipo. Cada hoja es una fila de 6 cuadros en este orden; ancho/alto son los del cuadro y ancla, el punto de los pies
-  // o del torso. ver: alto en pantalla; hundir: cuánto queda por debajo del borde de la tarjeta.
+  // equipo. Cada hoja es una fila de 6 cuadros en este orden; ancho/alto son los del cuadro, ax/ay el centro del cuerpo
+  // sobre la línea del borde (en fracción) y ver, el alto que se ve por encima del borde de la tarjeta.
   const POSES = ["reposo", "parpadeo", "saludo", "pensar", "senalar", "celebrar"];
   const PJ = {
-    tecnico: { ancho: 239, alto: 420, ancla: 0.4607, ver: 206, hundir: 0.45 },
-    medidor: { ancho: 310, alto: 420, ancla: 0.4674, ver: 150, hundir: 0.4 },
-    ingeniera: { ancho: 289, alto: 420, ancla: 0.5241, ver: 150, hundir: 0.3 },
+    tecnico: { ancho: 313, alto: 420, ax: 0.3781, ay: 0.8964, ver: 134 },
+    medidor: { ancho: 410, alto: 420, ax: 0.4155, ay: 0.8684, ver: 108 },
+    ingeniera: { ancho: 322, alto: 420, ax: 0.5432, ay: 0.9308, ver: 118 },
   };
   const SPRITES = CONF.sprites || new URL("sprites/", yo?.src || location.href).href;
   const MASCOTA = '<span class="cht-mascota" aria-hidden="true"><span class="cht-sube"><span class="cht-pj"></span></span></span>';
-  const precargarSprites = () => Object.keys(PJ).forEach((k) => { new Image().src = `${SPRITES}${k}-arte.webp`; });
+  const precargarSprites = () => Object.keys(PJ).forEach((k) => { new Image().src = `${SPRITES}${k}-arcilla.webp`; });
 
   function crearMascota(caja) {
     const sube = caja.querySelector(".cht-sube"), pj = caja.querySelector(".cht-pj");
     let actual = null, pose = "reposo", turno = 0, vivo = true, parpadeo = 0;
     const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
-    const medida = () => { const d = PJ[actual]; const alto = d.ver * (innerWidth < 600 ? 0.85 : 1); return { alto, ancho: (alto * d.ancho) / d.alto }; };
+    // alto de la celda entera: lo visible sobre el borde es ver, y eso es la fracción ay de la celda
+    const medida = () => { const d = PJ[actual]; const alto = (d.ver * (innerWidth < 600 ? 0.88 : 1)) / d.ay; return { alto, ancho: (alto * d.ancho) / d.alto }; };
     const poner = (p) => {
       pose = p;
       if (!actual) return;
@@ -184,13 +188,19 @@
       const { alto, ancho } = medida();
       caja.style.setProperty("--w", `${ancho}px`);
       caja.style.setProperty("--h", `${alto}px`);
-      caja.style.setProperty("--ver", `${alto * (1 - PJ[k].hundir)}px`);
-      caja.style.setProperty("--ax", PJ[k].ancla);
-      pj.style.backgroundImage = `url("${SPRITES}${k}-arte.webp")`;
+      caja.style.setProperty("--ax", PJ[k].ax);
+      caja.style.setProperty("--ay", PJ[k].ay);
+      pj.style.backgroundImage = `url("${SPRITES}${k}-arcilla.webp")`;
     };
-    // sube desde detrás del borde o baja a esconderse
-    const mover = (desde, hasta, ms) => (reducido ? Promise.resolve()
-      : sube.animate([{ transform: `translateY(${desde})` }, { transform: `translateY(${hasta})` }], { duration: ms, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }).finished.catch(() => {}));
+    // sube desde detrás del borde o baja a esconderse, recortado en la línea del borde; al llegar arriba se suelta el
+    // recorte y aparecen los dedos que cuelgan por delante
+    const mover = async (subir, ms) => {
+      if (reducido) return;
+      const abajo = `translateY(${Math.round(PJ[actual].ay * 100) + 4}%)`;
+      caja.dataset.recorte = "";
+      await sube.animate([{ transform: subir ? abajo : "none" }, { transform: subir ? "none" : abajo }], { duration: ms, easing: subir ? "cubic-bezier(.2,.8,.2,1)" : "cubic-bezier(.5,0,.8,.4)", fill: "forwards" }).finished.catch(() => {});
+      if (subir) delete caja.dataset.recorte;
+    };
     // parpadea cada tanto, solo quieto y con la pestaña a la vista
     const programar = () => {
       clearTimeout(parpadeo);
@@ -204,8 +214,8 @@
       // cambia de personaje si hace falta (el que está se esconde y sube el otro) y corre las poses con su duración
       async mostrar(k, secuencia) {
         const mio = ++turno;
-        if (actual && actual !== k) { await mover("0", "100%", 260); if (mio !== turno) return; }
-        if (actual !== k) { vestir(k); poner(secuencia[0][0]); await mover("100%", "0", 560); }
+        if (actual && actual !== k) { await mover(false, 280); if (mio !== turno) return; }
+        if (actual !== k) { vestir(k); poner(secuencia[0][0]); await mover(true, 620); }
         for (const [p, ms] of secuencia) {
           if (!vivo || mio !== turno) return;
           poner(p);

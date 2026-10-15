@@ -1,7 +1,7 @@
 {
   "personaje": "tecnico",
   "cuadro": {
-    "ancho": 239,
+    "ancho": 313,
     "alto": 420
   },
   "acciones": {
@@ -13,7 +13,7 @@
     "celebrar": 5
   },
   "ancla": {
-    "x": 0.4607,
-    "y": 0.9783
+    "x": 0.3781,
+    "y": 0.8964
   }
 }

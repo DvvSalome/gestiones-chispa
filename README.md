@@ -73,7 +73,7 @@ El **Técnico** (el rayo con casco de ingeniero) es el que atiende. Dos personaj
 
 Al cambiar de personaje, el que está se esconde detrás del borde y sube el otro.
 
-Cada personaje es una hoja de sprites en `sprites/<personaje>-arte.webp`. Tiene una pose por acción, en este orden:
+Los tres son de arcilla 3D, como la mascota de TARGET: se asoman por el borde de la tarjeta con las manos agarradas por delante. Cada personaje es una hoja de sprites en `sprites/<personaje>-arcilla.webp`. Tiene una pose por acción, en este orden:
 
 | Pose | Cuándo sale |
 |---|---|
@@ -86,8 +86,7 @@ Cada personaje es una hoja de sprites en `sprites/<personaje>-arte.webp`. Tiene 
 
 El `.json` de cada hoja trae el tamaño del cuadro y el punto donde va parado el personaje.
 
-Las poses salen de ilustraciones de ChatGPT (`arte/`). `sprites/recortar.py` las recorta, quita las migas que deja
-la pose vecina y las alinea por los pies o el torso. Con movimiento reducido no sube ni respira: solo cambia de pose.
+Las poses salen de ilustraciones de ChatGPT (`arte/arcilla/`, hechas con la mascota de TARGET y el logo de referencia, que están en `arte/referencias/`). `sprites/recortar.py` las separa por piezas (una mano suelta va con su pose) y las alinea por la línea del borde. Con movimiento reducido no sube ni respira: solo cambia de pose.
 
 Para servir las hojas desde otra ruta, usar `data-sprites="https://…/sprites/"`.
 

@@ -1,7 +1,7 @@
 {
-  "personaje": "ingeniera",
+  "personaje": "medidor",
   "cuadro": {
-    "ancho": 289,
+    "ancho": 410,
     "alto": 420
   },
   "acciones": {
@@ -13,7 +13,7 @@
     "celebrar": 5
   },
   "ancla": {
-    "x": 0.5241,
-    "y": 0.9725
+    "x": 0.4155,
+    "y": 0.8684
   }
 }
