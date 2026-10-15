@@ -1,0 +1,15 @@
+.env
+.git
+.claude-flow
+.swarm
+ruvector.db
+arte
+capturas
+demo
+docs
+sprites
+test
+test.cjs
+README.md
+HANDOFF.md
+PROMPT-ISAIAS.md

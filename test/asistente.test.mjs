@@ -104,3 +104,38 @@ test("HTTP: CORS solo para la tienda, pregunta obligatoria y límite de tamaño"
   const salud = await (await fetch(`${base}/api/chispa/salud`)).json();
   assert.deepEqual(salud.proveedores, ["nvidia", "openrouter"]);
 });
+
+test("TRUST_PROXY=1: el límite se cuenta por la última IP de X-Forwarded-For (la de nuestro proxy), no por la IP del proxy ni por lo que escriba el cliente", async () => {
+  comoNvidia = "bien";
+  const base = await new Promise((ok) => { const s = A.servidor({ ...env(), TRUST_PROXY: "1" }).listen(0, "127.0.0.1", () => ok(`http://127.0.0.1:${s.address().port}`)); servidores.push(s); });
+  const post = (xff) => fetch(`${base}/api/chispa/chat`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": xff }, body: JSON.stringify(pregunta("panel")) });
+  const codigos = [];
+  for (let i = 0; i < 31; i += 1) codigos.push((await post("198.51.100.7, 203.0.113.50")).status);
+  assert.equal(codigos[0], 200);
+  assert.equal(codigos.at(-1), 429, "la 31.ª pregunta de la misma persona se frena");
+  assert.equal((await post("198.51.100.7, 203.0.113.51")).status, 200, "otra persona (otra IP vista por el proxy) no comparte el cupo");
+  assert.equal((await post("9.9.9.9, 203.0.113.50")).status, 429, "cambiar lo que escribe el cliente al inicio no libera el cupo");
+});
+
+test("sin TRUST_PROXY se ignora X-Forwarded-For: cualquiera podría escribirlo para esquivar el límite", async () => {
+  comoNvidia = "bien";
+  const base = await new Promise((ok) => { const s = A.servidor(env()).listen(0, "127.0.0.1", () => ok(`http://127.0.0.1:${s.address().port}`)); servidores.push(s); });
+  const codigos = [];
+  for (let i = 0; i < 45; i += 1) codigos.push((await fetch(`${base}/api/chispa/chat`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": `203.0.113.${i + 1}` }, body: JSON.stringify(pregunta("panel")) })).status);
+  assert.ok(codigos.includes(429), "con IP distinta en cada petición igual se frena: la IP real es la de la conexión");
+});
+
+test("ipDe: solo acepta direcciones con forma de IP en la cabecera confiable", () => {
+  const req = (xff) => ({ headers: { "x-forwarded-for": xff }, socket: { remoteAddress: "10.0.0.2" } });
+  assert.equal(A.ipDe(req("1.1.1.1, 203.0.113.9"), { TRUST_PROXY: "1" }), "203.0.113.9");
+  assert.equal(A.ipDe(req("1.1.1.1, <script>"), { TRUST_PROXY: "1" }), "10.0.0.2");
+  assert.equal(A.ipDe(req(""), { TRUST_PROXY: "1" }), "10.0.0.2");
+  assert.equal(A.ipDe(req("203.0.113.9"), {}), "10.0.0.2");
+});
+
+test("/api/chispa/vivo responde sin consultar el catálogo (healthcheck del contenedor)", async () => {
+  const base = await new Promise((ok) => { const s = A.servidor({ ...env(), TIENDA_URL: "http://127.0.0.1:9" }).listen(0, "127.0.0.1", () => ok(`http://127.0.0.1:${s.address().port}`)); servidores.push(s); });
+  const r = await fetch(`${base}/api/chispa/vivo`);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true });
+});

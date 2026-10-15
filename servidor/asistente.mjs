@@ -20,7 +20,7 @@ const lista = (v, porDefecto) => (v || porDefecto).split(",").map((s) => s.trim(
 export function proveedores(env = process.env) {
   return [
     env.NVIDIA_NIM_KEY && { nombre: "nvidia", base: env.NVIDIA_NIM_BASE || "https://integrate.api.nvidia.com/v1", key: env.NVIDIA_NIM_KEY,
-      modelos: lista(env.NVIDIA_NIM_MODELS, "moonshotai/kimi-k3,openai/gpt-oss-20b") },
+      modelos: lista(env.NVIDIA_NIM_MODELS, "google/gemma-4-31b-it,openai/gpt-oss-20b") },
     env.OPENROUTER_API_KEY && { nombre: "openrouter", base: env.OPENROUTER_BASE || "https://openrouter.ai/api/v1", key: env.OPENROUTER_API_KEY,
       modelos: lista(env.OPENROUTER_MODELS, "google/gemini-2.5-flash,openai/gpt-4o-mini") },
   ].filter(Boolean);
@@ -71,11 +71,11 @@ export function buscar(productos, consulta, cuantos = 12) {
 const SISTEMA = `Eres Chispa, el asesor virtual de Gestiones Eléctricas (Barranquilla): materiales eléctricos y servicios de ingeniería con norma RETIE.
 Reglas:
 - Responde en español, cálido y profesional, en 1 a 3 frases cortas.
-- Recomienda SOLO productos de la lista CANDIDATOS, por su slug, como máximo 4, y solo los que de verdad sirven para lo que pide.
+- Recomienda SOLO productos de la lista CANDIDATOS, por su slug, como máximo 4. Elige los que mejor sirven para lo que pide; si ninguno es exacto, muestra los más cercanos: es mejor enseñar lo más parecido del catálogo que dejar a la persona sin nada.
+- Si hay candidatos relacionados con lo que pide, recomienda SIEMPRE al menos uno, aunque falte algún dato. Si falta un dato clave (voltaje, potencia, calibre, uso), recomienda primero y después haz UNA pregunta corta para afinar. Nunca respondas solo con una pregunta cuando hay candidatos.
 - Nunca escribas precios, cantidades de dinero ni promesas de entrega: la tienda muestra el precio en cada tarjeta.
-- Si falta un dato para recomendar bien (voltaje, potencia, calibre, uso), haz UNA pregunta corta.
 - Si la persona va a instalar algo, dile que Gestiones Eléctricas también hace la instalación.
-- Si no hay candidatos que sirvan, dilo y ofrece que un asesor le ayude por WhatsApp.
+- Solo si NINGÚN candidato tiene relación con lo que pide, o lo que pide no tiene que ver con electricidad, no recomiendes nada: dilo y ofrece que un asesor le ayude por WhatsApp.
 Responde SOLO con JSON: {"texto": "…", "productos": ["slug", …]}`;
 
 // No cambiar de proveedor para eludir una negativa de política (igual que el CRM).
@@ -140,6 +140,19 @@ export async function responder({ mensajes = [], carrito = [] }, env = process.e
 
 // ── HTTP ──────────────────────────────────────────────────────────────────────────────────────────────────
 const visitas = new Map();
+/**
+ * IP de quien pregunta, para el límite. Detrás del proxy de Coolify (Traefik) `remoteAddress` es SIEMPRE la del proxy: sin esto todas las personas
+ * compartirían un único cupo de 30 preguntas por minuto. Con TRUST_PROXY=1 se toma la ÚLTIMA IP de X-Forwarded-For, la que añade nuestro propio
+ * proxy; las anteriores las escribe quien llama y no sirven. Sin TRUST_PROXY (desarrollo, sin proxy) se ignora la cabecera.
+ */
+const IP = /^[0-9a-fA-F:.]{3,64}$/;
+export function ipDe(req, env = process.env) {
+  if (env.TRUST_PROXY === "1") {
+    const ultima = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean).at(-1);
+    if (ultima && IP.test(ultima)) return ultima;
+  }
+  return req.socket.remoteAddress;
+}
 const demasiadas = (ip) => {
   const ahora = Date.now(), v = (visitas.get(ip) || []).filter((t) => ahora - t < 60000);
   v.push(ahora); visitas.set(ip, v);
@@ -154,11 +167,12 @@ export function servidor(env = process.env) {
     const enviar = (codigo, cuerpo) => { res.writeHead(codigo, cabeceras); res.end(JSON.stringify(cuerpo)); };
     try {
       if (req.method === "OPTIONS") return enviar(204, {});
+      if (req.method === "GET" && req.url === "/api/chispa/vivo") return enviar(200, { ok: true });   // healthcheck del contenedor: no toca el catálogo ni los modelos
       if (req.method === "GET" && req.url === "/api/chispa/salud") {
         return enviar(200, { ok: true, proveedores: proveedores(env).map((p) => p.nombre), catalogo: (await catalogo()).length });
       }
       if (req.method !== "POST" || req.url !== "/api/chispa/chat") return enviar(404, { error: "no existe" });
-      if (demasiadas(req.socket.remoteAddress)) return enviar(429, { error: "Demasiadas preguntas seguidas. Espera un momento." });
+      if (demasiadas(ipDe(req, env))) return enviar(429, { error: "Demasiadas preguntas seguidas. Espera un momento." });
       let cuerpo = "";
       for await (const trozo of req) { cuerpo += trozo; if (cuerpo.length > 20000) return enviar(413, { error: "mensaje muy largo" }); }
       const datos = JSON.parse(cuerpo || "{}");
