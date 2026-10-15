@@ -7,6 +7,7 @@
 //
 // node servidor/asistente.mjs  →  POST /api/chispa/chat   GET /api/chispa/salud   (PORT, por defecto 4547)
 import { createServer } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -170,7 +171,18 @@ const visitas = new Map();
  * proxy; las anteriores las escribe quien llama y no sirven. Sin TRUST_PROXY (desarrollo, sin proxy) se ignora la cabecera.
  */
 const IP = /^[0-9a-fA-F:.]{3,64}$/;
+function llaveValida(req, esperada) {
+  const dada = Buffer.from(String(req.headers["x-chispa-key"] || ""));
+  const buena = Buffer.from(esperada);
+  return dada.length === buena.length && timingSafeEqual(dada, buena);
+}
 export function ipDe(req, env = process.env) {
+  // El servidor de la tienda llama desde Vercel: todas las personas llegarían con la IP de salida de Vercel y compartirían UN cupo. Con la llave
+  // compartida CHISPA_KEY (cabecera X-Chispa-Key) el bot confía en la IP real que la tienda le pasa en X-Client-IP; sin la llave, esa cabecera se ignora.
+  if (env.CHISPA_KEY && llaveValida(req, env.CHISPA_KEY)) {
+    const ip = String(req.headers["x-client-ip"] || "").trim();
+    if (IP.test(ip)) return ip;
+  }
   if (env.TRUST_PROXY === "1") {
     const ultima = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean).at(-1);
     if (ultima && IP.test(ultima)) return ultima;

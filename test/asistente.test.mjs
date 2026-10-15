@@ -243,3 +243,24 @@ test("PROVEEDORES cambia el orden y un proveedor sin llave se omite", () => {
   assert.deepEqual(A.proveedores({ NVIDIA_NIM_KEY: "x" }).map((p) => p.nombre), ["nvidia"]);
   assert.deepEqual(A.proveedores({}), []);
 });
+
+// ── La tienda (servidor) se identifica con CHISPA_KEY y pasa la IP real de la persona ──
+test("ipDe: con la llave correcta se toma X-Client-IP; sin ella o con otra, se ignora", () => {
+  const req = (h) => ({ headers: h, socket: { remoteAddress: "10.0.0.2" } });
+  const env = { CHISPA_KEY: "llave-compartida-de-prueba", TRUST_PROXY: "1" };
+  assert.equal(A.ipDe(req({ "x-chispa-key": "llave-compartida-de-prueba", "x-client-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.1, 76.76.21.1" }), env), "203.0.113.9");
+  assert.equal(A.ipDe(req({ "x-chispa-key": "otra-llave-distinta-xxxx", "x-client-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.1, 76.76.21.1" }), env), "76.76.21.1", "llave equivocada: se ignora X-Client-IP y rige el proxy");
+  assert.equal(A.ipDe(req({ "x-client-ip": "203.0.113.9" }), env), "10.0.0.2", "sin llave no se confía en X-Client-IP");
+  assert.equal(A.ipDe(req({ "x-chispa-key": "llave-compartida-de-prueba", "x-client-ip": "<script>" }), env), "10.0.0.2", "una IP con forma rara no se acepta");
+  assert.equal(A.ipDe(req({ "x-chispa-key": "x", "x-client-ip": "203.0.113.9" }), {}), "10.0.0.2", "sin CHISPA_KEY configurada nunca se confía");
+});
+
+test("con CHISPA_KEY el límite es por la IP real de cada persona, aunque todas lleguen desde la misma IP de la tienda", async () => {
+  comoNvidia = "bien";
+  const base = await new Promise((ok) => { const s = A.servidor({ ...env(), CHISPA_KEY: "llave-de-prueba-1234" }).listen(0, "127.0.0.1", () => ok(`http://127.0.0.1:${s.address().port}`)); servidores.push(s); });
+  const post = (ip) => fetch(`${base}/api/chispa/chat`, { method: "POST", headers: { "content-type": "application/json", "x-chispa-key": "llave-de-prueba-1234", "x-client-ip": ip }, body: JSON.stringify(pregunta("panel")) });
+  const codigos = [];
+  for (let i = 0; i < 31; i += 1) codigos.push((await post("203.0.113.77")).status);
+  assert.equal(codigos.at(-1), 429, "la persona 77 se pasó de 30 por minuto");
+  assert.equal((await post("203.0.113.78")).status, 200, "la persona 78, desde la misma IP de la tienda, no queda bloqueada");
+});
