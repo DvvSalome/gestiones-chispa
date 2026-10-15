@@ -9,8 +9,9 @@
  *   <script src="/chispa-tecnico.js" data-endpoint="https://crm…/api/solicitudes" defer></script>
  * Sin data-endpoint, la solicitud sale por WhatsApp al número de la tienda (data-whatsapp lo cambia).
  *
- * La mascota sigue la coreografía de MascotaAsomada de TARGET (target-scale-web) con mano fija: se agarra del
- * borde, respira, parpadea, mira al cursor, se esconde detrás y vuelve a salir; con movimiento reducido, quieta.
+ * La mascota se asoma por el borde de la tarjeta, como la de TARGET: el Técnico (rayo con casco) atiende, y el Medidor
+ * y la Ingeniera hacen cameo según el caso. Cada uno es una hoja de sprites con una pose por acción (sprites/*-arte.webp,
+ * ilustración de ChatGPT recortada con sprites/recortar.py); con movimiento reducido no sube ni respira, solo cambia de pose.
  */
 (function () {
   "use strict";
@@ -74,6 +75,7 @@
   const yo = document.currentScript;
   const CONF = {
     endpoint: yo?.dataset.endpoint || "",
+    sprites: yo?.dataset.sprites || "",
     whatsapp: (yo?.dataset.whatsapp || "573018141027").replace(/\D/g, ""),
     carrito: yo?.dataset.carrito || "ge-tienda-carrito-v1",
   };
@@ -89,9 +91,9 @@
   // Los mismos campos, botones y colores de la tienda (DM Sans, lima #c9e400, campos de 48 px con borde de 2 px,
   // botones píldora), en claro y en oscuro, para que se lea como parte de ella.
   const css = `
-.cht{--t:#12140a;--fondo:#fff;--borde:#12140a;--campo:#6f7660;--linea:#d3d7c2;--suave:#565c46;--acento:#3b4f00;--lima:#c9e400;--error:#b42318;position:relative;margin:104px 16px 16px;font:inherit;color:var(--t);scroll-margin-top:190px}
+.cht{--t:#12140a;--fondo:#fff;--borde:#12140a;--campo:#6f7660;--linea:#d3d7c2;--suave:#565c46;--acento:#3b4f00;--lima:#c9e400;--error:#b42318;position:relative;margin:120px 16px 16px;font:inherit;color:var(--t);scroll-margin-top:190px}
 [data-theme=dark] .cht{--t:#eef1e2;--fondo:#171a0f;--borde:#c9e400;--campo:#7e856c;--linea:#343a26;--suave:#a5ab93;--acento:#c9e400;--error:#ff9b8f}
-.pedido__lineas > .cht{margin:104px 0 8px}
+.pedido__lineas > .cht{margin:120px 0 8px}
 .cht *{box-sizing:border-box}
 .cht [hidden]{display:none!important}
 .cht-card{position:relative;background:var(--fondo);border:2px solid var(--borde);border-radius:18px;padding:20px}
@@ -144,131 +146,74 @@
 .cht-resumen .cht-enlace{margin:0;padding:4px 0}
 .cht-ok{display:flex;gap:12px;align-items:flex-start;margin-right:-8px}
 .cht-ok svg{flex:none;margin-top:4px;color:var(--acento)}
-/* la mascota: cuelga del borde de arriba de la tarjeta, como la de TARGET */
-.cht-mascota{position:absolute;bottom:100%;left:var(--mx,24%);width:var(--mw,104px);margin-left:calc(var(--mw,104px) / -2);aspect-ratio:120/100;pointer-events:none;user-select:none}
-@media(max-width:600px){.cht-mascota{--mw:84px}}
-.cht-escena{position:absolute;inset:0;clip-path:inset(-100% -60% 0 -60%)}
-.cht-manos{position:absolute;inset:0}
-.cht-salto,.cht-giro,.cht-respira{position:absolute;inset:0;transform-origin:50% 100%}
-.cht-respira{animation:cht-respirar 5.5s ease-in-out infinite}
-@keyframes cht-respirar{50%{transform:scale(1.015,1.04)}}
-.cht-mascota svg{position:absolute;left:0;top:0;width:100%;overflow:visible}
-.cht-ojo{transform-box:fill-box;transform-origin:center}
-.cht-pupila{translate:calc(var(--ox,0) * 3px) calc(var(--oy,0) * 3px);transition:translate .24s cubic-bezier(.3,.7,.3,1)}
-@media(prefers-reduced-motion:reduce){.cht-respira{animation:none}}
+/* la mascota: se asoma por el borde de arriba de la tarjeta; lo que queda por debajo del borde no se ve */
+.cht-mascota{position:absolute;bottom:100%;left:var(--mx,22%);width:var(--w,98px);height:var(--ver,96px);margin-left:calc(var(--w,98px) * var(--ax,.5) * -1);overflow:hidden;pointer-events:none;user-select:none}
+.cht-sube{position:absolute;inset:0}
+.cht-pj{position:absolute;left:0;top:0;width:var(--w);height:var(--h);background-repeat:no-repeat;background-size:calc(var(--w) * 6) var(--h);transform-origin:50% 100%;animation:cht-respirar 4.8s ease-in-out infinite}
+@keyframes cht-respirar{50%{transform:scale(1.008,1.016)}}
+@media(prefers-reduced-motion:reduce){.cht-pj{animation:none}}
 `;
 
-  // Chispa en piezas: el rayo con los ojos (se recorta en el borde) y las dos manos que lo agarran por delante.
-  const OJO = (x, y) => `<g class="cht-ojo"><circle cx="${x}" cy="${y}" r="10" fill="#fff" stroke="#111" stroke-width="3"/><circle class="cht-pupila" cx="${x}" cy="${y + 1}" r="4.5" fill="#111"/></g>`;
-  const CUERPO = `<svg viewBox="0 0 120 140" style="height:140%"><path d="M76 4 22 74h32L40 136l62-86H70L92 4Z" fill="#c9e400" stroke="#111" stroke-width="4" stroke-linejoin="round"/><path d="M98 18l10-6M100 30l12 1" stroke="#ff8a00" stroke-width="4" stroke-linecap="round"/>${OJO(52, 46)}${OJO(73, 43)}</svg>`;
-  // cada mano cuelga por delante del borde (y=100): los dedos pasan por encima y terminan redondos abajo
-  const MANO = (x) => `<rect x="${x - 10}" y="91" width="20" height="19" rx="8" fill="#c9e400" stroke="#111" stroke-width="3.5"/><path d="M${x - 3.5} 100v7M${x + 3.5} 100v7" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>`;
-  const MANOS = `<svg viewBox="0 0 120 140" style="height:140%">${MANO(42)}${MANO(76)}</svg>`;
-  const MASCOTA = `<span class="cht-mascota" aria-hidden="true"><span class="cht-escena"><span class="cht-salto"><span class="cht-giro"><span class="cht-respira">${CUERPO}</span></span></span></span><span class="cht-manos"><span class="cht-salto"><span class="cht-respira">${MANOS}</span></span></span></span>`;
+  // ── La mascota: hojas de sprites (ilustración de ChatGPT), una pose por acción ─────────────────────────────
+  // El Técnico atiende; el Medidor hace cameo en los servicios de medición y la Ingeniera cuando escribe una persona del
+  // equipo. Cada hoja es una fila de 6 cuadros en este orden; ancho/alto son los del cuadro y ancla, el punto de los pies
+  // o del torso. ver: alto en pantalla; hundir: cuánto queda por debajo del borde de la tarjeta.
+  const POSES = ["reposo", "parpadeo", "saludo", "pensar", "senalar", "celebrar"];
+  const PJ = {
+    tecnico: { ancho: 239, alto: 420, ancla: 0.4607, ver: 206, hundir: 0.45 },
+    medidor: { ancho: 310, alto: 420, ancla: 0.4674, ver: 150, hundir: 0.4 },
+    ingeniera: { ancho: 289, alto: 420, ancla: 0.5241, ver: 150, hundir: 0.3 },
+  };
+  const SPRITES = CONF.sprites || new URL("sprites/", yo?.src || location.href).href;
+  const MASCOTA = '<span class="cht-mascota" aria-hidden="true"><span class="cht-sube"><span class="cht-pj"></span></span></span>';
+  const precargarSprites = () => Object.keys(PJ).forEach((k) => { new Image().src = `${SPRITES}${k}-arte.webp`; });
 
-  // ── Vida de la mascota (MascotaAsomada de TARGET, con mano fija) ─────────────────────────────────────────
-  function darVida(raiz) {
-    if (reducido || typeof raiz.animate !== "function") return { celebrar: async () => {}, parar: () => {} };
-    const [cuerpo, manos] = raiz.querySelectorAll(".cht-salto");
-    const giro = raiz.querySelector(".cht-giro");
-    const ojos = [...raiz.querySelectorAll(".cht-ojo")];
-    const azar = (a, b) => a + Math.random() * (b - a);
-    const tope = (v) => Math.max(-1, Math.min(1, v));
-    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    const corriendo = new Set();
-    let activa = true, ocupada = false, reloj = 0, movido = -Infinity;
-    const ultima = { saludo: 0, escondida: performance.now() };
-    const animar = (els, cuadros, ms, extra = {}) => Promise.all([].concat(els).map((el) => {
-      const a = el.animate(cuadros, { duration: ms, ...extra });
-      corriendo.add(a);
-      return a.finished.then(() => corriendo.delete(a), () => corriendo.delete(a));
-    }));
-    // las manos repiten los estirones del cuerpo pero nunca sus traslados: no sueltan el borde
-    const sinTraslado = (cs) => cs.map((c) => ({ ...c, transform: String(c.transform || "none").replace(/translateY\([^)]*\)\s*/g, "").trim() || "none" }));
-    const mirar = (x, y) => { raiz.style.setProperty("--ox", x.toFixed(2)); raiz.style.setProperty("--oy", y.toFixed(2)); };
-
-    const parpadear = () => animar(ojos, [
-      { transform: "scaleY(1)", easing: "cubic-bezier(.5,0,.9,.6)" }, { transform: "scaleY(.08)", offset: 0.4 },
-      { transform: "scaleY(.08)", offset: 0.55, easing: "cubic-bezier(.2,.5,.3,1)" }, { transform: "scaleY(1)" }], 220);
-    // sin brazo: saluda ladeándose de contento, con los ojos entrecerrados
-    const saludar = () => {
-      ultima.saludo = performance.now();
-      return Promise.all([
-        animar(giro, [{ transform: "none" }, { transform: "rotate(-9deg)", offset: 0.2 }, { transform: "rotate(7deg)", offset: 0.45 }, { transform: "rotate(-5deg)", offset: 0.7 }, { transform: "none" }], 1300, { easing: "ease-in-out" }),
-        animar(ojos, [{ transform: "scaleY(1)" }, { transform: "scaleY(.55)", offset: 0.15 }, { transform: "scaleY(.55)", offset: 0.85 }, { transform: "scaleY(1)" }], 1300),
-      ]);
+  function crearMascota(caja) {
+    const sube = caja.querySelector(".cht-sube"), pj = caja.querySelector(".cht-pj");
+    let actual = null, pose = "reposo", turno = 0, vivo = true, parpadeo = 0;
+    const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    const medida = () => { const d = PJ[actual]; const alto = d.ver * (innerWidth < 600 ? 0.85 : 1); return { alto, ancho: (alto * d.ancho) / d.alto }; };
+    const poner = (p) => {
+      pose = p;
+      if (!actual) return;
+      pj.style.backgroundPosition = `${-POSES.indexOf(p) * medida().ancho}px 0`;
+      if (!reducido) pj.animate([{ translate: "0 3px", scale: ".985" }, { translate: "0 0", scale: "1" }], { duration: 160, easing: "ease-out" });
     };
-    const celebrar = () => Promise.all([
-      animar(cuerpo, [{ transform: "none" }, { transform: "scale(.94,1.1)", offset: 0.3 }, { transform: "scale(1.05,.95)", offset: 0.62 }, { transform: "none" }], 560),
-      animar(manos, sinTraslado([{ transform: "none" }, { transform: "scale(.94,1.1)", offset: 0.3 }, { transform: "scale(1.05,.95)", offset: 0.62 }, { transform: "none" }]), 560),
-      animar(ojos, [{ transform: "scaleY(1)" }, { transform: "scaleY(.6)", offset: 0.3 }, { transform: "scaleY(.6)", offset: 0.7 }, { transform: "scaleY(1)" }], 560),
-    ]);
-    // se agacha detrás del borde, espera ladeándose y vuelve a salir estirado
-    const esconderse = async () => {
-      ultima.escondida = performance.now();
-      const hondo = Math.random() < 0.3 ? 106 : 74, quieta = azar(700, 1400), total = 1500 + quieta;
-      const t = (ms) => Math.min(1, ms / total);
-      const bajada = [
-        { transform: "none", easing: "cubic-bezier(.3,0,.5,1)" },
-        { transform: "scale(1.04,.95)", offset: t(190), easing: "cubic-bezier(.55,0,.85,.35)" },
-        { transform: `translateY(${hondo}%) scale(.97,1.03)`, offset: t(430), easing: "cubic-bezier(.2,.7,.4,1)" },
-        { transform: `translateY(${hondo - 4}%)`, offset: t(560) },
-        { transform: `translateY(${hondo - 4}%)`, offset: t(560 + quieta), easing: "cubic-bezier(.25,.6,.35,1)" },
-        { transform: "translateY(0) scale(.94,1.09)", offset: t(900 + quieta), easing: "cubic-bezier(.45,0,.55,1)" },
-        { transform: "scale(1.05,.95)", offset: t(1120 + quieta), easing: "cubic-bezier(.4,0,.4,1)" },
-        { transform: "none" },
-      ];
-      await Promise.all([
-        animar(cuerpo, bajada, total), animar(manos, sinTraslado(bajada), total),
-        animar(giro, [{ transform: "none" }, { transform: "none", offset: t(560) }, { transform: "rotate(-5deg)", offset: t(560 + quieta * 0.35) }, { transform: "rotate(4deg)", offset: t(560 + quieta * 0.75) }, { transform: "none", offset: t(560 + quieta) }, { transform: "none" }], total, { easing: "ease-in-out" }),
-      ]);
-      if (activa) await parpadear();
+    const vestir = (k) => {
+      actual = k;
+      const { alto, ancho } = medida();
+      caja.style.setProperty("--w", `${ancho}px`);
+      caja.style.setProperty("--h", `${alto}px`);
+      caja.style.setProperty("--ver", `${alto * (1 - PJ[k].hundir)}px`);
+      caja.style.setProperty("--ax", PJ[k].ancla);
+      pj.style.backgroundImage = `url("${SPRITES}${k}-arte.webp")`;
     };
-    const ojear = async () => {
-      const [x, y] = [[-1, -0.25], [1, -0.2], [-0.8, 0.45], [0.85, 0.4], [0, -0.9]][Math.floor(Math.random() * 5)];
-      mirar(x, y);
-      await esperar(azar(700, 1500));
-      if (activa && performance.now() - movido > 2500) mirar(0, 0);
+    // sube desde detrás del borde o baja a esconderse
+    const mover = (desde, hasta, ms) => (reducido ? Promise.resolve()
+      : sube.animate([{ transform: `translateY(${desde})` }, { transform: `translateY(${hasta})` }], { duration: ms, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }).finished.catch(() => {}));
+    // parpadea cada tanto, solo quieto y con la pestaña a la vista
+    const programar = () => {
+      clearTimeout(parpadeo);
+      parpadeo = setTimeout(async () => {
+        if (vivo && pose === "reposo" && !document.hidden) { poner("parpadeo"); await esperar(170); if (vivo && pose === "parpadeo") poner("reposo"); }
+        if (vivo) programar();
+      }, 3500 + Math.random() * 4000);
     };
-    // aparece subiendo desde detrás del borde; las manos ya están agarradas
-    const entrar = async () => {
-      const subida = [
-        { transform: "translateY(106%)", easing: "cubic-bezier(.25,.7,.35,1)" },
-        { transform: "translateY(0) scale(.94,1.09)", offset: 0.55, easing: "cubic-bezier(.45,0,.55,1)" },
-        { transform: "scale(1.05,.95)", offset: 0.78, easing: "cubic-bezier(.4,0,.4,1)" }, { transform: "none" },
-      ];
-      await Promise.all([animar(cuerpo, subida, 820), animar(manos, sinTraslado(subida), 820)]);
-      if (activa) await saludar();
-    };
-    const hacer = async (accion) => {
-      ocupada = true;
-      await accion();
-      ocupada = false;
-      if (activa) programar(azar(900, 2600));
-    };
-    const turno = () => {
-      if (!activa) return;
-      if (document.hidden || ocupada) return programar(1500);
-      const ahora = performance.now();
-      const opciones = [[parpadear, 5], [ojear, ahora - movido > 2500 ? 3 : 0], [saludar, ahora - ultima.saludo > 11000 ? 2 : 0], [esconderse, ahora - ultima.escondida > 6000 ? 4 : 0]];
-      let r = Math.random() * opciones.reduce((s, [, p]) => s + p, 0);
-      const [accion] = opciones.find(([, p]) => (r -= p) < 0) || opciones[0];
-      void hacer(accion);
-    };
-    const programar = (ms) => { clearTimeout(reloj); reloj = setTimeout(turno, ms); };
-    // con mouse mira al cursor (solo los ojos) y, si se le acerca, saluda
-    const alMover = (e) => {
-      movido = performance.now();
-      const r = raiz.getBoundingClientRect();
-      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height * 0.45);
-      mirar(tope(dx / Math.max(140, r.width * 1.1)), tope(dy / Math.max(110, r.height * 1.2)));
-      if (!ocupada && Math.hypot(dx, dy) < r.width * 0.8 && movido - ultima.saludo > 6000) { clearTimeout(reloj); void hacer(saludar); }
-    };
-    if (matchMedia("(hover: hover) and (pointer: fine)").matches) addEventListener("pointermove", alMover, { passive: true });
-    void hacer(entrar);
+    if (!reducido) programar();
     return {
-      celebrar: () => (ocupada ? Promise.resolve() : hacer(celebrar)),
-      parar: () => { activa = false; clearTimeout(reloj); removeEventListener("pointermove", alMover); corriendo.forEach((a) => a.cancel()); },
+      // cambia de personaje si hace falta (el que está se esconde y sube el otro) y corre las poses con su duración
+      async mostrar(k, secuencia) {
+        const mio = ++turno;
+        if (actual && actual !== k) { await mover("0", "100%", 260); if (mio !== turno) return; }
+        if (actual !== k) { vestir(k); poner(secuencia[0][0]); await mover("100%", "0", 560); }
+        for (const [p, ms] of secuencia) {
+          if (!vivo || mio !== turno) return;
+          poner(p);
+          if (ms) await esperar(reducido ? ms / 2 : ms);
+        }
+      },
+      pose: (p) => { turno++; poner(p); },
+      parar: () => { vivo = false; turno++; clearTimeout(parpadeo); },
     };
   }
 
@@ -348,7 +293,10 @@
     // dentro de la sección (no como hermana): /pedido es una grilla y una hermana suelta se va al final
     (lineas || carrito.querySelector(".carrito__cuerpo") || carrito).appendChild(raiz);
     const cuerpo = raiz.querySelector(".cht-cuerpo");
-    const vida = darVida(raiz.querySelector(".cht-mascota"));
+    const masc = crearMascota(raiz.querySelector(".cht-mascota"));
+    precargarSprites();
+    // el Medidor hace cameo en los servicios que se miden; el resto lo atiende el Técnico
+    const quien = ["medidor", "tierra", "transformador"].includes(servicio.id) ? "medidor" : "tecnico";
     const para = paraQue(servicio);
 
     // el borrador vive en la sesión: si cierra el carrito a mitad, al volver sigue donde iba
@@ -365,7 +313,7 @@
     const alCerrarCarrito = () => cerrar(false);
     const cerrar = (no) => {
       if (no) sesion.sumar(NO, servicio.id);
-      vida.parar();
+      masc.parar();
       raiz.remove();
       abierta = null;
       carrito?.removeEventListener("close", alCerrarCarrito);
@@ -390,7 +338,7 @@
     const ciudad = () => (b.ciudad === "Otra" ? b.otra.trim() || "Otra ciudad" : b.ciudad);
 
     const vistas = {
-      oferta: (delClic) => pintar(`<p class="cht-ceja">Servicio técnico</p>
+      oferta: (delClic) => (void masc.mostrar(quien, [["saludo", 1400], ["senalar", 1800], ["reposo", 0]]), pintar(`<p class="cht-ceja">Servicio técnico</p>
         <h3 class="cht-titulo" tabindex="-1">¿Te lo instalamos?</h3>
         <p class="cht-texto">${esc(servicio.motivo)}</p>
         <div class="cht-para"><strong>${esc(servicio.titulo)}</strong>${listaProductos(servicio)}</div>
@@ -399,9 +347,10 @@
           <button type="button" class="cht-boton" data-accion="no">Ahora no</button>
         </div>
         <button type="button" class="cht-enlace" data-accion="solo">¿Solo necesitas el técnico, sin comprar? Pídelo aquí</button>
-        <p class="cht-nota">Con el respaldo de ingeniería de Gestiones Eléctricas. Pedir la cotización no te compromete a nada.</p>`, delClic),
+        <p class="cht-nota">Con el respaldo de ingeniería de Gestiones Eléctricas. Pedir la cotización no te compromete a nada.</p>`, delClic)),
 
       agregada: (delClic) => {
+        void masc.mostrar(quien, delClic ? [["celebrar", 1600], ["reposo", 0]] : [["saludo", 1200], ["reposo", 0]]);
         const p = guardado.leer(PEDIDO) || {};
         pintar(`<div class="cht-ok">${LISTO}<div><p class="cht-ceja">Servicio técnico</p>
           <h3 class="cht-titulo" tabindex="-1">Instalación agregada a tu pedido</h3></div></div>
@@ -412,7 +361,7 @@
           <button type="button" class="cht-enlace" data-accion="quitar">Quitar la instalación</button>`, delClic);
       },
 
-      trabajo: (delClic) => pintar(`${pasos(1)}<h3 class="cht-titulo" tabindex="-1">Cuéntanos del trabajo</h3>
+      trabajo: (delClic) => (void masc.mostrar("tecnico", [["reposo", 0]]), pintar(`${pasos(1)}<h3 class="cht-titulo" tabindex="-1">Cuéntanos del trabajo</h3>
         <form data-paso="1" novalidate>
           <fieldset><legend>¿Qué necesitas?</legend><div class="cht-chips">${chips("que", QUE, b.que)}</div></fieldset>
           <fieldset aria-describedby="${uid}-e-cuando"><legend>¿Para cuándo?</legend><div class="cht-chips">${chips("cuando", CUANDO, b.cuando)}</div>${error("cuando")}</fieldset>
@@ -422,9 +371,9 @@
             ${error("ciudad")}</fieldset>
           <div class="cht-acciones"><button class="cht-boton" data-principal>Continuar</button></div>
         </form>
-        <button type="button" class="cht-enlace" data-accion="volver">Volver</button>`, delClic),
+        <button type="button" class="cht-enlace" data-accion="volver">Volver</button>`, delClic)),
 
-      contacto: (delClic) => pintar(`${pasos(2)}<h3 class="cht-titulo" tabindex="-1">¿A quién le escribimos?</h3>
+      contacto: (delClic) => (void masc.mostrar("ingeniera", [["saludo", 1400], ["reposo", 0]]), pintar(`${pasos(2)}<h3 class="cht-titulo" tabindex="-1">¿A quién le escribimos?</h3>
         <p class="cht-resumen"><span><strong>${esc(b.que)}</strong> · ${esc(b.cuando)} · ${esc(ciudad())}</span><button type="button" class="cht-enlace" data-accion="cambiar">Cambiar</button></p>
         <form data-paso="2" novalidate>
           <div class="cht-campo"><label for="${uid}-nombre">Nombre</label>
@@ -437,14 +386,14 @@
           <div><label class="cht-permiso"><input type="checkbox" data-campo="permiso" aria-describedby="${uid}-e-permiso"> Autorizo a Gestiones Eléctricas a contactarme por WhatsApp o llamada sobre esta solicitud.</label>${error("permiso")}</div>
           ${error("envio")}
           <div class="cht-acciones"><button class="cht-boton" data-principal>Pedir el técnico</button></div>
-        </form>`, delClic),
+        </form>`, delClic)),
 
-      listo: (enviada) => pintar(`<div class="cht-ok">${LISTO}<div><p class="cht-ceja">Solicitud ${enviada ? "recibida" : "lista"}</p>
+      listo: (enviada) => (void masc.mostrar("ingeniera", [["celebrar", 1800], ["reposo", 0]]), pintar(`<div class="cht-ok">${LISTO}<div><p class="cht-ceja">Solicitud ${enviada ? "recibida" : "lista"}</p>
         <h3 class="cht-titulo" tabindex="-1">¡Listo, ${esc(b.nombre.trim().split(/\s+/)[0])}!</h3></div></div>
         <p class="cht-texto">${enviada
           ? `Un asesor de Gestiones Eléctricas te escribe al ${esc(conEspacios(b.telefono))} por WhatsApp para coordinar la visita y el valor del servicio.`
           : "Termina de enviar el mensaje en WhatsApp y un asesor te responde para coordinar la visita y el valor del servicio."}</p>
-        <div class="cht-acciones"><button type="button" class="cht-boton" data-accion="seguir">Seguir comprando</button></div>`, true),
+        <div class="cht-acciones"><button type="button" class="cht-boton" data-accion="seguir">Seguir comprando</button></div>`, true)),
     };
     const ir = (vista, delClic = true) => { b.vista = vista; precargar(); guardar(); vistas[vista](delClic); };
 
@@ -478,7 +427,6 @@
         guardado.poner(PEDIDO, { id: servicio.id, titulo: servicio.titulo, para, cuando: "" });
         if (enPedido) escribirNota(lineaNota(guardado.leer(PEDIDO)));
         ir("agregada");
-        void vida.celebrar();
       } else if (accion === "quitar") {
         guardado.poner(PEDIDO, null);
         if (enPedido) escribirNota(null);
@@ -555,6 +503,7 @@
       const fallo = form.querySelector('[data-error="envio"]');
       boton.disabled = true;
       boton.textContent = "Enviando…";
+      masc.pose("pensar");
       fallo.hidden = true;
       try {
         const r = await fetch(CONF.endpoint, {
@@ -573,6 +522,7 @@
         // no se perdió nada: lo escrito sigue en el formulario y queda el camino por WhatsApp
         boton.disabled = false;
         boton.textContent = "Pedir el técnico";
+        masc.pose("reposo");
         fallo.hidden = false;
         fallo.innerHTML = `No pudimos enviarla. Inténtalo de nuevo o <a href="${esc(wa)}" target="_blank" rel="noopener">mándala por WhatsApp</a>.`;
       }
@@ -582,7 +532,6 @@
       sesion.sumar(NO, servicio.id);
       vistas.listo(enviada);
       guardado.poner(BORRADOR, null);
-      void vida.celebrar();
     };
 
     // al abrir: si ya la agregó al pedido, lo muestra así; si dejó el formulario a medias, sigue ahí

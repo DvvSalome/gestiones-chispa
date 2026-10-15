@@ -10,6 +10,12 @@ const script = new URL("../chispa-tecnico.js", import.meta.url);
 
 createServer(async (req, res) => {
   try {
+    // las hojas de sprites de la mascota
+    const sprite = req.url.match(/^\/sprites\/([a-z]+-arte\.webp)$/);
+    if (sprite) {
+      res.writeHead(200, { "content-type": "image/webp", "cache-control": "no-store" });
+      return res.end(await readFile(new URL(`../sprites/${sprite[1]}`, import.meta.url)));
+    }
     if (req.url === "/chispa-tecnico.js") {
       res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
       return res.end(await readFile(script));

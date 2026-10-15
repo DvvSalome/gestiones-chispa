@@ -63,18 +63,33 @@ del carrito.
 Un producto suelto, como un bombillo o un panel, no dispara nada. «Ahora no» lo calla en esa sesión. Nunca sale
 encima de la ficha del producto, solo donde la persona mira su pedido.
 
-## Chispa asomado
+## La mascota
 
-Sigue la coreografía de `MascotaAsomada` de TARGET con la mano fija:
+El **Técnico** (el rayo con casco de ingeniero) es el que atiende. Dos personajes más aparecen según el caso:
 
-- Las manos agarran el borde de la tarjeta y no lo sueltan.
-- El cuerpo sube, respira, se ladea, se esconde detrás del borde y vuelve a salir.
-- Los ojos parpadean y siguen al cursor.
-- Celebra cuando llega la solicitud.
-- Con movimiento reducido queda quieto.
+- **Medidor**: en los servicios que se miden (medidor, puesta a tierra, transformador).
+- **Ingeniera**: cuando el cliente deja sus datos («¿A quién le escribimos?») y en la confirmación, porque le escribe
+  una persona del equipo.
 
-El dibujo es un SVG plano del rayo con ojos. Si quieren el Chispa 3D del widget, se recorta en piezas (cuerpo,
-ojos y manos) como la mascota de TARGET y se cambian `CUERPO` y `MANOS`.
+Al cambiar de personaje, el que está se esconde detrás del borde y sube el otro.
+
+Cada personaje es una hoja de sprites en `sprites/<personaje>-arte.webp`. Tiene una pose por acción, en este orden:
+
+| Pose | Cuándo sale |
+|---|---|
+| Reposo | Quieto, respirando |
+| Parpadeo | Cada 3 a 7 segundos |
+| Saludo | Al aparecer; el Técnico levanta el casco |
+| Pensando | Mientras se envía la solicitud |
+| Señalando | Apunta a la oferta |
+| Celebrando | Instalación agregada o solicitud enviada |
+
+El `.json` de cada hoja trae el tamaño del cuadro y el punto donde va parado el personaje.
+
+Las poses salen de ilustraciones de ChatGPT (`arte/`). `sprites/recortar.py` las recorta, quita las migas que deja
+la pose vecina y las alinea por los pies o el torso. Con movimiento reducido no sube ni respira: solo cambia de pose.
+
+Para servir las hojas desde otra ruta, usar `data-sprites="https://…/sprites/"`.
 
 ## Probar
 
@@ -86,6 +101,7 @@ CHISPA_ENDPOINT=/solicitudes node demo/servidor.mjs   # prueba el envío: el pro
 
 ## Con el chat de Chispa
 
-`window.ChispaTecnico.sugerirServicio(carrito)` queda disponible. Si el widget de Chispa le manda el carrito al
+El widget del chat puede usar las mismas hojas: la pose «Pensando» del Técnico mientras el modelo escribe y
+«Celebrando» cuando se crea el pedido. `window.ChispaTecnico.sugerirServicio(carrito)` queda disponible. Si el widget de Chispa le manda el carrito al
 modelo en cada mensaje, puede usar la misma regla para ofrecer el técnico dentro de la conversación y no solo en
 la tarjeta.

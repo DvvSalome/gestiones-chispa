@@ -1,0 +1,19 @@
+{
+  "personaje": "ingeniera",
+  "cuadro": {
+    "ancho": 289,
+    "alto": 420
+  },
+  "acciones": {
+    "reposo": 0,
+    "parpadeo": 1,
+    "saludo": 2,
+    "pensar": 3,
+    "senalar": 4,
+    "celebrar": 5
+  },
+  "ancla": {
+    "x": 0.5241,
+    "y": 0.9725
+  }
+}
