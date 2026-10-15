@@ -511,6 +511,9 @@
       }
       const boton = form.querySelector(".cht-boton[data-principal]");
       const fallo = form.querySelector('[data-error="envio"]');
+      // la misma solicitud lleva siempre el mismo id: si se reintenta, el CRM no la duplica
+      b.idSolicitud = b.idSolicitud || (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      guardar();
       boton.disabled = true;
       boton.textContent = "Enviando…";
       masc.pose("pensar");
@@ -519,7 +522,7 @@
         const r = await fetch(CONF.endpoint, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            tipo: "solicitud_servicio", servicio: { id: servicio.id, titulo: servicio.titulo },
+            id: b.idSolicitud, tipo: "solicitud_servicio", servicio: { id: servicio.id, titulo: servicio.titulo },
             necesidad: { que: b.que, cuando: b.cuando },
             contacto: { nombre: b.nombre.trim(), telefono: b.telefono, ciudad: ciudad(), direccion: b.direccion.trim() },
             permiso_contacto: true, carrito: items.map((i) => ({ codigo: i.codigo, nombre: i.nombre, cantidad: i.cantidad, categoria: i.categoria })),

@@ -53,9 +53,9 @@ El chat de Chispa lo hizo otra sesión, en el PC de cotizaciones (`asistente.js`
 2. Cargarlo en el layout raíz:
    `<script src="/chispa/chispa-tecnico.js" data-sprites="/chispa/sprites/" defer></script>`
    o con `next/script` y `strategy="afterInteractive"`.
-3. Opcional: `data-endpoint="https://…/api/solicitudes-servicio"` para que las solicitudes del técnico sin compra
-   lleguen al CRM del cliente como lead (el contrato está en `README.md`). Sin endpoint salen por WhatsApp al
-   573018141027.
+3. `data-endpoint="https://crm.gestioneselectricas.tech/api/public/solicitudes-servicio"`: las solicitudes del
+   técnico sin compra llegan al CRM del cliente (ver sección 4). Sin endpoint salen por WhatsApp al 573018141027;
+   eso sirve solo de respaldo.
 4. Partes de la tienda de las que depende (si cambian, se rompe; mejor ponerles un `data-` fijo):
    - `localStorage` `ge-tienda-carrito-v1` con `nombre`, `categoria`, `cantidad` y `codigo`;
    - el carrito como `dialog.carrito` con `.carrito__cuerpo`;
@@ -63,7 +63,25 @@ El chat de Chispa lo hizo otra sesión, en el PC de cotizaciones (`asistente.js`
    - `/pedido/gracias` como página de pedido enviado;
    - `data-theme="dark"` en `<html>` para el modo oscuro.
 
-### 4. Tarjetas de producto estilo Rappi (propuesta)
+### 4. Conectarlo con el CRM del cliente (obligatorio)
+
+Todo lo que el cliente pida tiene que **llegar al CRM** (crm.gestioneselectricas.tech) y verse ahí, con origen
+claro, para que un asesor lo atienda:
+
+| Qué | Cómo llega | Qué se tiene que ver en el CRM |
+|---|---|---|
+| **Solicitud «solo técnico»** | `POST /api/public/solicitudes-servicio` (crearlo en el CRM) con el JSON del `README.md` | Contacto (nombre, celular, ciudad) con origen «Tienda — servicio técnico» y una tarea u oportunidad para el asesor. Debe traer el servicio, qué necesita, cuándo, lo del carrito y la autorización de contacto con fecha. |
+| **Pedido con instalación** | El pedido que la tienda ya manda al CRM, con la línea `[Servicio técnico] Quiero cotizar: …` en la nota | El pedido con la nota completa, y que el asesor vea que también pide instalación (ideal: una etiqueta o tarea por la marca `[Servicio técnico]`). |
+| **Conversación del chat** | Lo que ya haga el widget de Chispa | La conversación y, si deja datos o pide asesor, el contacto. |
+
+El endpoint de solicitudes tiene que cumplir esto:
+- Aceptar solo el origen de la tienda (CORS) y tener límite por IP.
+- Validar tipos y largos de cada campo.
+- **No duplicar:** si llega el mismo `id`, responde 200 sin crear otro.
+- Responder 2xx solo cuando quedó guardado; si falla, la tienda le ofrece WhatsApp a la persona.
+- Avisar al asesor como avisa hoy el CRM con un lead nuevo.
+
+### 5. Tarjetas de producto estilo Rappi (propuesta)
 
 Abrir `docs/propuesta-tarjetas/index.html`. La tabla del final dice qué cambia en la tarjeta, la categoría y el
 carrito. Son cambios del código de la tienda; no tocan datos ni precios. Es una propuesta: va solo con el visto
@@ -97,6 +115,24 @@ PLAYWRIGHT=ruta/a/playwright node test/e2e-vivo.mjs   # prueba real (ver abajo)
 
 Termina en `✓ todo bien` o dice qué falló. El detalle queda en `test/resultado-e2e.json`.
 
+Que llegue al CRM, en el preview y contra el CRM, con datos de prueba marcados como prueba (nombre «PRUEBA
+Chispa», tu propio celular):
+1. **«Solo técnico»:** completar el flujo. En el CRM aparece **una** solicitud con todos los campos.
+   - Reenviar la misma (recargar y volver a enviar) **no crea otra**.
+   - Con el endpoint caído, la tienda ofrece WhatsApp y no pierde lo escrito.
+2. **Pedido con instalación:** carrito solar → «Sí, agrégala a mi pedido» → enviar el pedido de prueba. En el CRM
+   el pedido trae la línea `[Servicio técnico] …` en la nota.
+3. **Chat:** preguntar por paneles solares y dejar datos. La conversación y el contacto quedan en el CRM.
+4. **Limpieza:** borrar o marcar como prueba todo lo creado.
+
+Pruebas con personas: 3 personas que no conozcan la tienda, en su propio celular, con estos encargos, sin ayudarlas
+y anotando dónde se traban:
+- «Compra lo necesario para una instalación solar pequeña y pide que te la instalen.»
+- «Pregúntale al chat qué breaker necesitas para tu tablero y agrégalo.»
+- «Pide solo un técnico para revisar una puesta a tierra, sin comprar nada.»
+
+En cada encargo, comprobar después que lo pedido llegó al CRM.
+
 Además:
 - **Antes de producción:** probar en un **preview de Vercel** (o una rama) de la tienda con el script puesto.
   Revisar el carrito y `/pedido` en celular (390 px) y escritorio, en claro y oscuro, con un carrito solar (panel +
@@ -113,5 +149,6 @@ Además:
 ## Lo que no se hizo y por qué
 
 - **El chat de Chispa no está aquí.** Lo hizo otra sesión en otro PC; se integra según el paso 2.
-- **El endpoint de solicitudes del CRM del cliente no existe todavía.** Mientras tanto, WhatsApp funciona.
+- **El endpoint de solicitudes del CRM del cliente no existe todavía.** Hay que crearlo (sección 4). WhatsApp queda
+  solo de respaldo.
 - **No se corrió la prueba real con llaves:** quedó para hacerla con las llaves del cliente.

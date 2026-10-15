@@ -29,8 +29,10 @@ y no pierde lo que escribió.
 
 ```json
 {
+  "id": "3f6c…",                       // uuid de la solicitud: el mismo en cada reintento (para no duplicar)
   "tipo": "solicitud_servicio",
   "servicio": { "id": "solar", "titulo": "Instalación del sistema solar" },
+  "necesidad": { "que": "Instalación", "cuando": "Esta semana" },
   "contacto": { "nombre": "…", "telefono": "3001234567", "ciudad": "Barranquilla", "direccion": "" },
   "permiso_contacto": true,
   "carrito": [{ "codigo": "PNLM33", "nombre": "Panel Solar…", "cantidad": 1, "categoria": "Energía Solar Fotovoltaica" }],

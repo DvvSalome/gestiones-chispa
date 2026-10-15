@@ -35,6 +35,15 @@ Vas a llevar a producción **Chispa y el servicio técnico** en la tienda de Ges
    - Conecta el widget del chat a `/api/chispa/chat`, mandando el carrito y mostrando los productos y la oferta.
    - Usa la mascota de arcilla de este repo, asomada al borde del panel y sin flotar sobre el contenido.
    - Despliega un **preview de Vercel**.
+4b. **Conectar con el CRM del cliente** (crm.gestioneselectricas.tech; `HANDOFF.md`, sección 4).
+   - Crea `POST /api/public/solicitudes-servicio`: CORS solo de la tienda, límite por IP, validación, sin duplicar
+     por `id` y aviso al asesor. Debe crear el contacto con origen «Tienda — servicio técnico» y una tarea con el
+     servicio, lo que necesita, cuándo, el carrito y la autorización con fecha.
+   - Pon ese endpoint en `data-endpoint` del script.
+   - Confirma que el pedido de la tienda llega al CRM con la nota completa y que la línea `[Servicio técnico]`
+     quede a la vista del asesor (etiqueta o tarea).
+   - Confirma que las conversaciones del chat y los contactos que deja la gente quedan en el CRM.
+   - Escribe pruebas automáticas del endpoint: guarda, no duplica, rechaza datos inválidos y orígenes ajenos.
 5. **Validar el preview con capturas.** A 390 y 1280 px, en claro y oscuro:
    - Un carrito solar (panel + inversor) muestra al Técnico con «¿Te lo instalamos?» en el carrito y en `/pedido`.
    - «Sí, agrégala a mi pedido» escribe la instalación en la nota del pedido.
@@ -43,13 +52,24 @@ Vas a llevar a producción **Chispa y el servicio técnico** en la tienda de Ges
    - El chat recomienda productos reales y ofrece el técnico.
    - La consola queda sin errores, no hay desborde horizontal y con movimiento reducido la mascota queda quieta.
 
-   **No hagas pedidos reales ni envíes WhatsApp a clientes:** usa el endpoint de prueba o detente antes de enviar.
-6. **Mándame las capturas y el resultado de las pruebas, y espera mi OK.** Adrián aprueba antes de producción.
+   **Que llegue al CRM:** con datos marcados «PRUEBA Chispa» y tu propio celular:
+   - Una solicitud «solo técnico» aparece una sola vez en el CRM, aunque se reenvíe.
+   - Un pedido de prueba con instalación llega con la nota.
+   - Una conversación del chat con datos queda registrada.
+   Al final borra o marca como prueba todo lo creado.
+
+   **Pruebas con personas:** 3 personas en su celular con los encargos del `HANDOFF.md`. Anota dónde se traban y
+   comprueba que lo de cada una llegó al CRM.
+
+   **No hagas pedidos reales ni envíes WhatsApp a clientes.**
+6. **Mándame las capturas, el resultado de las pruebas automáticas y el de las pruebas con personas** (qué se
+   trabó y qué llegó al CRM), y espera mi OK. Adrián aprueba antes de producción.
 7. **Con el OK.**
    - Promueve el preview a producción.
    - Comprueba en vivo que respondan `/chispa/chispa-tecnico.js`, `/chispa/sprites/tecnico-arcilla.webp` y
      `/api/chispa/salud`.
-   - Repite el punto 5 en producción, sin enviar nada real.
+   - Repite en producción el flujo de prueba y el chequeo de que llega al CRM, con datos de prueba, y límpialos al
+     final.
 8. **Al terminar, reporta:**
    - el commit de la tienda y el de este repo;
    - la URL del bot y el resultado de `e2e-vivo`;
