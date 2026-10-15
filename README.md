@@ -1,3 +1,5 @@
+> Para subirlo a producción: **[HANDOFF.md](HANDOFF.md)** y el prompt para el Claude de Isaías en **[PROMPT-ISAIAS.md](PROMPT-ISAIAS.md)**.
+
 # Chispa técnico — Gestiones Eléctricas
 
 Complemento de Chispa para tienda.gestioneselectricas.com. Cuando lo que la persona lleva pide una instalación,
@@ -90,10 +92,18 @@ Las poses salen de ilustraciones de ChatGPT (`arte/arcilla/`, hechas con la masc
 
 Para servir las hojas desde otra ruta, usar `data-sprites="https://…/sprites/"`.
 
+## El bot del chat (`servidor/asistente.mjs`)
+
+Recomienda solo productos del catálogo real de la tienda (`/api/indice-busqueda`), sin inventar precios, y ofrece
+el técnico con las mismas reglas del carrito. Usa NVIDIA NIM con OpenRouter de respaldo, como el FourG CRM. Si
+ninguno responde, muestra lo encontrado en el catálogo. El contrato y el despliegue están en `HANDOFF.md`.
+
 ## Probar
 
 ```bash
 node test.cjs                  # reglas: qué servicio sale con cada carrito
+node --test test/              # el bot sin llaves (proveedores simulados)
+node test/e2e-vivo.mjs         # el bot de verdad + carrito → técnico → nota del pedido (llaves en .env)
 node demo/servidor.mjs         # la tienda real por un proxy local, con el script inyectado: http://localhost:4546
 CHISPA_ENDPOINT=/solicitudes node demo/servidor.mjs   # prueba el envío: el proxy solo lo imprime en consola
 ```

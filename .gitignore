@@ -1,1 +1,5 @@
 sprites/*.png
+.env
+test/resultado-e2e.json
+# referencia de estilo de otro cliente (TARGET): queda solo en local
+arte/referencias/estilo-target-arcilla.png

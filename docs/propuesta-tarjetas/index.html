@@ -1,0 +1,226 @@
+<title>Tarjetas de producto Gestiones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap">
+<style>
+/* Banco de pruebas de la tienda: a la izquierda la tarjeta de hoy, al lado un celular con la propuesta funcionando
+   (catálogo real, el + se vuelve contador, barra del pedido) y abajo la vista de escritorio y la lista de cambios.
+   Colores, letra y botones: los de tienda.gestioneselectricas.com. */
+:root {
+  --bg: #f4f5ec; --fg: #12140a; --suave: #565c46; --linea: #dfe2d0; --tarjeta: #ffffff; --foto: #ffffff;
+  --acento: #3b4f00; --lima: #c9e400; --cotizar: #eef6b8; --marco: #12140a;
+  --sans: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "DM Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1008; --fg: #eef1e2; --suave: #a5ab93; --linea: #2c311f; --tarjeta: #171a0f; --foto: #ffffff; --acento: #c9e400; --cotizar: #3a4415; --marco: #3a4120; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #0e1008; --fg: #eef1e2; --suave: #a5ab93; --linea: #2c311f; --tarjeta: #171a0f; --foto: #ffffff; --acento: #c9e400; --cotizar: #3a4415; --marco: #3a4120; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.5; padding-inline: 16px; padding-block: 28px 64px }
+.envoltura { max-width: 1200px; margin: 0 auto; display: grid; gap: 40px }
+.envoltura > * { min-width: 0 }
+.ceja { margin: 0; font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--acento) }
+h1 { margin: 6px 0 10px; font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; line-height: 1.05; letter-spacing: -.025em; text-wrap: balance }
+h2 { margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.01em }
+.intro { margin: 0; max-width: 64ch; color: var(--suave); font-size: 17px }
+.cifras { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 16px 0 0; padding: 0; list-style: none }
+.cifras li { font-size: 15px; color: var(--suave) }
+.cifras b { display: block; font-size: 26px; font-weight: 800; color: var(--fg); font-variant-numeric: tabular-nums; letter-spacing: -.02em }
+
+/* antes y después */
+.comparar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 28px; align-items: start }
+.columna { display: grid; gap: 10px; justify-items: center; min-width: 0 }
+.columna > p { margin: 0; justify-self: stretch; text-align: center; font-size: 14px; color: var(--suave) }
+.etiqueta { padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--tarjeta); border: 1.5px solid var(--linea) }
+.etiqueta[data-nueva] { background: var(--lima); border-color: var(--lima); color: #12140a }
+.cel { position: relative; width: min(100%, 390px); height: 760px; border: 10px solid var(--marco); border-radius: 44px; background: var(--bg); overflow: hidden }
+.cel > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top }
+.pantalla { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 12px 96px; scrollbar-width: none }
+.pantalla::-webkit-scrollbar { display: none }
+
+/* la propuesta: buscador, filtros y la grilla */
+.buscar { position: sticky; top: -14px; z-index: 2; margin: -14px -12px 0; padding: 14px 12px 10px; background: var(--bg) }
+.campo { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-radius: 999px; background: var(--tarjeta); box-shadow: 0 4px 16px rgba(18,20,10,.08); font-size: 15px; color: var(--suave) }
+.chips { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px }
+.chips::-webkit-scrollbar { display: none }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border: 1.5px solid var(--linea); border-radius: 999px; background: var(--tarjeta); color: var(--fg); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
+.chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg) }
+.chip:focus-visible, .mas:focus-visible, .paso button:focus-visible, .barra:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px }
+.conteo { margin: 14px 2px 10px; font-size: 14px; color: var(--suave) }
+.conteo b { color: var(--fg) }
+.grilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 10px }
+
+/* la tarjeta: foto cuadrada con el + encima, precio, nombre en dos líneas y referencia */
+.tarj { position: relative; display: grid; gap: 4px; min-width: 0 }
+.foto { position: relative; aspect-ratio: 1; border-radius: 16px; background: var(--foto); border: 1px solid var(--linea); overflow: visible }
+.foto img { width: 100%; height: 100%; object-fit: contain; padding: 12px; border-radius: 16px }
+.mas { position: absolute; top: -8px; right: -6px; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--lima); color: #12140a; box-shadow: 0 3px 10px rgba(18,20,10,.22); cursor: pointer }
+.mas::after { content: ""; position: absolute; inset: -4px }
+.paso { position: absolute; top: -8px; right: -6px; display: flex; align-items: center; height: 40px; border-radius: 999px; background: var(--lima); color: #12140a; box-shadow: 0 3px 10px rgba(18,20,10,.22) }
+.paso button { width: 38px; height: 40px; display: grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer; border-radius: 999px }
+.paso output { min-width: 18px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums }
+.etiq-cot { position: absolute; left: 8px; bottom: 8px; padding: 2px 8px; border-radius: 6px; background: var(--cotizar); color: var(--fg); font-size: 12px; font-weight: 700 }
+.precio { margin: 4px 0 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums }
+.precio small { font-size: 12px; font-weight: 500; color: var(--suave); margin-left: 3px }
+.precio[data-cotizar] { font-size: 15px; color: var(--acento) }
+.nombre { margin: 0; font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(1.3em * 2) }
+.ref { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+
+/* barra flotante del pedido, en vez de abrir el carrito cada vez */
+.barra { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 3; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 8px 8px 18px; border: 0; border-radius: 999px; background: var(--fg); color: var(--bg); font: inherit; text-align: left; box-shadow: 0 10px 24px rgba(18,20,10,.25); cursor: pointer; transition: transform .25s cubic-bezier(.2,.8,.2,1), opacity .25s }
+.barra[hidden] { display: flex !important; transform: translateY(140%); opacity: 0; pointer-events: none }
+.barra span { flex: 1; min-width: 0; font-size: 14px; line-height: 1.3 }
+.barra b { display: block; font-size: 16px; font-variant-numeric: tabular-nums }
+.barra i { flex: none; font-style: normal; padding: 10px 16px; border-radius: 999px; background: var(--lima); color: #12140a; font-weight: 800; font-size: 14px }
+
+/* escritorio */
+.escritorio { padding: 22px; border-radius: 20px; background: var(--tarjeta); border: 1.5px solid var(--linea) }
+.escritorio .grilla { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 22px 16px }
+.fila { display: grid; grid-auto-flow: column; grid-auto-columns: 150px; gap: 16px; overflow-x: auto; padding: 10px 6px 6px 2px; scrollbar-width: thin }
+.escritorio h3 { margin: 4px 0 2px; font-size: 18px; font-weight: 800 }
+.escritorio .sub { margin: 0 0 6px; font-size: 14px; color: var(--suave) }
+
+/* cambios */
+.cambios { overflow-x: auto }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 15px }
+th, td { padding: 12px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--linea) }
+th { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--suave) }
+td:first-child { font-weight: 700; white-space: nowrap }
+td:nth-child(2) { color: var(--suave) }
+.aviso { margin: 0; font-size: 14px; color: var(--suave) }
+@media (prefers-reduced-motion: reduce) { .barra { transition: none } }
+</style>
+
+<div class="envoltura">
+  <header>
+    <p class="ceja">Gestiones Eléctricas · tienda</p>
+    <h1>Tarjetas de producto estilo Rappi</h1>
+    <p class="intro">Hoy en el celular una tarjeta ocupa toda la pantalla, con una foto enorme y un botón «Agregar» de lado a lado. La propuesta es la de Rappi: dos por fila, el «+» sobre la foto, el precio primero y el nombre en dos líneas. Al agregar no se abre el carrito: aparece la barra del pedido abajo y la persona sigue comprando.</p>
+    <ul class="cifras" aria-label="Medido en la tienda, celular de 390 px">
+      <li><b>447 px</b>alto de una tarjeta hoy</li>
+      <li><b>≈ 255 px</b>alto con la propuesta</li>
+      <li><b>1–2 → 5–6</b>productos por pantalla del celular</li>
+    </ul>
+  </header>
+
+  <section class="comparar" aria-label="Hoy y propuesta en celular">
+    <div class="columna">
+      <span class="etiqueta">Hoy</span>
+      <div class="cel"><img src="hoy-390.webp" alt="Captura de la tienda hoy: una tarjeta por pantalla con un botón Agregar grande"></div>
+      <p>Captura real de /categoria/energia-solar.</p>
+    </div>
+    <div class="columna">
+      <span class="etiqueta" data-nueva>Propuesta</span>
+      <div class="cel">
+        <div class="pantalla" id="pantalla">
+          <div class="buscar">
+            <div class="campo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Busca «breaker», «panel», «tubo»</div>
+            <div class="chips" id="chips-cel" role="toolbar" aria-label="Filtros"></div>
+          </div>
+          <p class="conteo" id="conteo-cel"></p>
+          <div class="grilla" id="grilla-cel"></div>
+        </div>
+        <button class="barra" id="barra" type="button" hidden><span id="barra-txt"></span><i>Ver pedido</i></button>
+      </div>
+      <p>Funciona: toca el «+», súmale o réstale, y prueba los filtros. Es una maqueta, no agrega nada a la tienda.</p>
+    </div>
+  </section>
+
+  <section class="escritorio" aria-label="Propuesta en escritorio">
+    <h2>En escritorio</h2>
+    <p class="sub">Cinco o seis por fila en la categoría, y en el inicio filas que se deslizan por tema, como «Pide de nuevo» en Rappi.</p>
+    <h3>Para tu sistema solar</h3>
+    <div class="fila" id="fila-solar"></div>
+    <h3>Catálogo</h3>
+    <div class="grilla" id="grilla-esc"></div>
+  </section>
+
+  <section>
+    <h2>Qué cambia</h2>
+    <p class="aviso">Para quien tenga el código de la tienda; son cambios de la tarjeta, la categoría y el carrito, sin tocar datos ni precios.</p>
+    <div class="cambios">
+      <table>
+        <thead><tr><th>Elemento</th><th>Hoy</th><th>Propuesta</th></tr></thead>
+        <tbody>
+          <tr><td>Grilla en celular</td><td>1 por fila, 447 px de alto</td><td>2 por fila, foto cuadrada, ≈ 255 px de alto</td></tr>
+          <tr><td>Agregar</td><td>Botón «Agregar» de todo el ancho</td><td>«+» lima de 40 px sobre la esquina de la foto; al tocarlo se vuelve «− 1 +» en el mismo lugar</td></tr>
+          <tr><td>Al agregar</td><td>Se abre el carrito completo</td><td>Barra del pedido abajo con cantidad y subtotal; el carrito se abre solo al tocarla</td></tr>
+          <tr><td>Precio</td><td>Debajo del nombre</td><td>Arriba, en negrilla, con «+ IVA» pequeño. Sin precio: «Cotizar» en la foto y en el precio</td></tr>
+          <tr><td>Nombre</td><td>Completo, en varias líneas</td><td>Dos líneas como máximo, todas las tarjetas del mismo alto</td></tr>
+          <tr><td>Referencia y subcategoría</td><td>Dos renglones arriba del nombre</td><td>Referencia en una línea gris abajo; la subcategoría pasa a los filtros</td></tr>
+          <tr><td>Filtros</td><td>—</td><td>Chips que se deslizan: con precio, cotizar y subcategorías (Paneles, Protecciones…), ordenar por precio</td></tr>
+          <tr><td>Inicio</td><td>Destacados en grilla</td><td>Filas por tema que se deslizan (Para tu sistema solar, Iluminación, Pide de nuevo con lo que ya pidió)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script id="datos" type="application/json">[{"n":"Panel Solar Nicomar 100W","c":"NCM-NERP030-8030","cat":"Energía Solar Fotovoltaica","s":"Paneles Solares","p":270725,"f":"fotos/panel-solar-nicomar-100w.webp"},{"n":"BREAKER MONOPOLAR SUNTREE SL7N-63 DC180V 1P 32A","c":"PROTB110","cat":"Energía Solar Fotovoltaica","s":"Protecciones en DC","p":31734,"f":"fotos/breaker-monopolar-suntree-sl7n-63-dc180v.webp"},{"n":"Aplique Decorativo Led Karluz Solar Pared 6 Led 3500K","c":"KL-3135","cat":"Energía Solar Fotovoltaica","s":"Apliques Solares","p":51084,"f":"fotos/aplique-decorativo-led-karluz-solar-pare.webp"},{"n":"Reflector Led Solar Karluz 400W 3.2V S-Apache","c":"KL-2990","cat":"Energía Solar Fotovoltaica","s":"Reflectores Solares","p":460566,"f":"fotos/reflector-led-solar-karluz-400w-3-2v-s-a.webp"},{"n":"Cable Fotovoltaico 6Mm2","c":"SUSOLARZZ-F-6","cat":"Energía Solar Fotovoltaica","s":"Cable Fotovoltaico","p":null,"f":"fotos/cable-fotovoltaico-6mm2.webp"},{"n":"Reflector Solar Led 100W 6500K marca EM","c":"LG507","cat":"Iluminación","s":"Reflectores Solares","p":88000,"f":"fotos/reflector-solar-led-100w-6500k-marca-em.webp"},{"n":"Lampara Alumbrado Publico Importada 180W Con Fotocelda","c":"LAMAP180W-F","cat":"Iluminación","s":"Alumbrado Público","p":178500,"f":"fotos/lampara-alumbrado-publico-importada-180w.webp"},{"n":"Panel Led Sobreponer 18W Cuadrado 6500K","c":"7014215","cat":"Iluminación","s":"Paneles","p":10889,"f":"fotos/panel-led-sobreponer-18w-cuadrado-6500k.webp"},{"n":"Lámpara Hermética Ledvance Damp Proof Housing 120Cm Double","c":"7017499","cat":"Iluminación","s":"Lámpara Hermética Proof Housing","p":null,"f":"fotos/lampara-hermetica-ledvance-damp-proof-ho.webp"},{"n":"Tubo Pvc 1/2\"","c":"TR-11410510","cat":"Tubería Conduit PVC","s":"Tubo PVC Conduit","p":3900,"f":"fotos/tubo-pvc-1-2.webp"},{"n":"Tapa Metálica Galvanizada 2400","c":"T082422","cat":"Tableros, Cajas y Gabinetes","s":"Cajas Conduit","p":850,"f":"fotos/tapa-metalica-galvanizada-2400.webp"},{"n":"Caja Strip Telefónica 60x75x10","c":"1214E00295","cat":"Tableros, Cajas y Gabinetes","s":"Cajas Strip","p":null,"f":"fotos/caja-strip-telefonica-60x75x10.webp"},{"n":"Conector Tipo GARL20","c":"3CM10ARL20","cat":"Conectores y Terminales","s":"Cobre","p":210762,"f":"fotos/conector-tipo-garl20.webp"},{"n":"Conector Eléctrico Auto Desforré 3M","c":"CEAUTO3M","cat":"Conectores y Terminales","s":"Fibra Óptica","p":null,"f":"fotos/conector-electrico-auto-desforre-3m.webp"},{"n":"Medidor 160 Amperios marca Emsitch","c":"MED-31002","cat":"Medidores","s":"","p":960000,"f":"fotos/medidor-160-amperios-marca-emsitch.webp"},{"n":"Transformador baja-baja 220V/400V 225 kVA seco","c":"TRA-20001","cat":"Transformadores","s":"","p":26500000,"f":"fotos/transformador-baja-baja-220v-400v-225-kv.webp"},{"n":"Aislador Porcelana Carrete 3 3/16 Ansi 53-3 Te","c":"ANSI53-3","cat":"Baja, Media y Alta Tensión","s":"Aisladores","p":4320,"f":"fotos/aislador-porcelana-carrete-3-3-16-ansi-5.webp"},{"n":"Aislador de Tipo Pin-Polimerico 15Kv Sin anillo Gamma","c":"130002000015","cat":"Baja, Media y Alta Tensión","s":"Aisladores","p":null,"f":"fotos/aislador-de-tipo-pin-polimerico-15kv-sin.webp"},{"n":"Caja Redonda Guab (Ep) En Aluminio 11/2\"","c":"EPN7-CGUAB150","cat":"Línea Anti-Explosión (NEMA 7)","s":"Caja Redonda GUAB","p":152496,"f":"fotos/caja-redonda-guab-ep-en-aluminio-11-2.webp"},{"n":"Toma EM USB + Corriente","c":"118Z-08","cat":"Materiales Varios","s":"Marca EM","p":12500,"f":"fotos/toma-em-usb-corriente.webp"}]</script>
+<script>
+const productos = JSON.parse(document.getElementById("datos").textContent);
+const pesos = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+const cantidad = new Map();
+const SVG_MAS = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const SVG_MENOS = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>';
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+const tarjeta = (p, i) => {
+  const q = cantidad.get(i) || 0;
+  const accion = q
+    ? `<div class="paso" role="group" aria-label="Cantidad de ${esc(p.n)}"><button type="button" data-menos="${i}" aria-label="Quitar uno">${SVG_MENOS}</button><output aria-live="polite">${q}</output><button type="button" data-mas="${i}" aria-label="Agregar otro">${SVG_MAS}</button></div>`
+    : `<button type="button" class="mas" data-mas="${i}" aria-label="Agregar ${esc(p.n)}">${SVG_MAS}</button>`;
+  const precio = p.p ? `<p class="precio">${pesos.format(p.p)}<small>+ IVA</small></p>` : `<p class="precio" data-cotizar>Cotizar</p>`;
+  return `<article class="tarj">
+    <div class="foto"><img src="${p.f}" alt="" loading="lazy">${p.p ? "" : '<span class="etiq-cot">Cotizar</span>'}${accion}</div>
+    ${precio}<p class="nombre">${esc(p.n)}</p><p class="ref">${p.c ? "Ref. " + esc(p.c) : esc(p.s || p.cat)}</p>
+  </article>`;
+};
+
+// el celular muestra la categoría solar y su vecina de iluminación, con filtros por subcategoría
+const enCel = productos.map((p, i) => [p, i]).filter(([p]) => /Solar|Iluminación/.test(p.cat));
+const filtros = [["todo", "Todo"], ["precio", "Con precio"], ["cotizar", "Cotizar"], ["orden", "Precio ↑"], ...[...new Set(enCel.map(([p]) => p.s).filter(Boolean))].slice(0, 5).map((s) => [s, s])];
+let filtro = "todo", ordenar = false;
+const chipsCel = document.getElementById("chips-cel");
+const pintarChips = () => {
+  chipsCel.innerHTML = filtros.map(([k, t]) => `<button type="button" class="chip" data-filtro="${esc(k)}" aria-pressed="${k === "orden" ? ordenar : filtro === k}">${esc(t)}</button>`).join("");
+};
+const pintar = () => {
+  let lista = enCel.filter(([p]) => filtro === "todo" || (filtro === "precio" ? p.p : filtro === "cotizar" ? !p.p : p.s === filtro));
+  if (ordenar) lista = [...lista].sort((a, b) => (a[0].p ?? Infinity) - (b[0].p ?? Infinity));
+  document.getElementById("grilla-cel").innerHTML = lista.map(([p, i]) => tarjeta(p, i)).join("");
+  document.getElementById("conteo-cel").innerHTML = `<b>${lista.length}</b> productos`;
+  document.getElementById("grilla-esc").innerHTML = productos.map(tarjeta).join("");
+  document.getElementById("fila-solar").innerHTML = productos.map((p, i) => [p, i]).filter(([p]) => /Solar/.test(p.cat)).map(([p, i]) => tarjeta(p, i)).join("");
+  // barra del pedido: cuántos lleva, el subtotal de lo que tiene precio y cuántos son para cotizar
+  let n = 0, total = 0, cot = 0;
+  for (const [i, q] of cantidad) { n += q; if (productos[i].p) total += productos[i].p * q; else cot += q; }
+  const barra = document.getElementById("barra");
+  barra.hidden = n === 0;
+  document.getElementById("barra-txt").innerHTML = `<b>${pesos.format(total)} + IVA</b>${n} ${n === 1 ? "producto" : "productos"}${cot ? ` · ${cot} para cotizar` : ""}`;
+};
+document.addEventListener("click", (e) => {
+  const mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]"), chip = e.target.closest("[data-filtro]");
+  if (mas || menos) {
+    const i = Number((mas || menos).dataset.mas ?? (mas || menos).dataset.menos);
+    const q = (cantidad.get(i) || 0) + (mas ? 1 : -1);
+    q > 0 ? cantidad.set(i, q) : cantidad.delete(i);
+    // el foco sigue en el mismo control después de repintar
+    const clave = mas ? `[data-mas="${i}"]` : q > 0 ? `[data-menos="${i}"]` : `[data-mas="${i}"]`;
+    const zona = e.target.closest(".pantalla, .escritorio");
+    pintar();
+    zona?.querySelector(clave)?.focus({ preventScroll: true });
+  } else if (chip) {
+    const k = chip.dataset.filtro;
+    if (k === "orden") ordenar = !ordenar; else filtro = k;
+    pintarChips(); pintar();
+  } else if (e.target.closest("#barra")) {
+    document.getElementById("barra-txt").innerHTML = "<b>Aquí se abre el carrito</b>con la oferta de instalación de Chispa";
+  }
+});
+pintarChips();
+// arranca con un panel y un breaker agregados para que se vea la barra y el contador
+cantidad.set(0, 2); cantidad.set(1, 1);
+pintar();
+</script>
