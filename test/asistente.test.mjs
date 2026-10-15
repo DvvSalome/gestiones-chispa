@@ -37,7 +37,8 @@ before(async () => {
 after(() => servidores.forEach((s) => s.close()));
 beforeEach(() => A.reiniciarDegradados());   // el estado «modelo degradado» es del módulo: cada prueba parte limpia
 
-const env = (extra = {}) => ({ NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: nvidia, NVIDIA_NIM_MODELS: "m1", OPENROUTER_API_KEY: "y", OPENROUTER_BASE: openrouter, OPENROUTER_MODELS: "m2", ...extra });
+// Las pruebas históricas parten de NVIDIA primero; el orden por defecto (OpenRouter primero) se prueba aparte, al final.
+const env = (extra = {}) => ({ PROVEEDORES: "nvidia,openrouter", NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: nvidia, NVIDIA_NIM_MODELS: "m1", OPENROUTER_API_KEY: "y", OPENROUTER_BASE: openrouter, OPENROUTER_MODELS: "m2", ...extra });
 const pregunta = (texto, carrito = []) => ({ mensajes: [{ rol: "cliente", texto }], carrito });
 
 test("NVIDIA caído → responde OpenRouter; sin productos inventados ni precios en el texto", async () => {
@@ -218,4 +219,27 @@ test("con TODOS los modelos caídos, solo la primera pregunta espera; las siguie
   assert.equal(r2.proveedor, "catalogo");
   assert.ok(r2.productos.length > 0);
   assert.ok(segunda < 150, `la segunda ni intenta los modelos degradados (${segunda} ms)`);
+});
+
+// ── Orden por defecto: OpenRouter primero, NVIDIA de respaldo (decisión del 2026-10-15) ──
+test("por defecto OpenRouter va primero y NVIDIA solo si OpenRouter falla", async () => {
+  const { PROVEEDORES, ...sinOrden } = env();
+  contenidoOR = OK;
+  comoNvidia = "bien";
+  const antes = llamadas.nvidia;
+  const r = await A.responder(pregunta("panel solar"), sinOrden);
+  assert.equal(r.proveedor, "openrouter:m2");
+  assert.equal(llamadas.nvidia, antes, "NVIDIA no se toca si OpenRouter responde");
+  assert.deepEqual(A.proveedores(sinOrden).map((p) => p.nombre), ["openrouter", "nvidia"]);
+  const rotoOR = await levantar((req, res) => responderJSON(res, 500, { error: "caído" }));
+  const r2 = await A.responder(pregunta("panel solar"), { ...sinOrden, OPENROUTER_BASE: rotoOR });
+  assert.equal(r2.proveedor, "nvidia:m1", "con OpenRouter caído responde NVIDIA");
+});
+
+test("PROVEEDORES cambia el orden y un proveedor sin llave se omite", () => {
+  const base = { NVIDIA_NIM_KEY: "x", OPENROUTER_API_KEY: "y" };
+  assert.deepEqual(A.proveedores({ ...base, PROVEEDORES: "nvidia,openrouter" }).map((p) => p.nombre), ["nvidia", "openrouter"]);
+  assert.deepEqual(A.proveedores({ ...base, PROVEEDORES: "openrouter" }).map((p) => p.nombre), ["openrouter", "nvidia"], "el que no aparece va al final");
+  assert.deepEqual(A.proveedores({ NVIDIA_NIM_KEY: "x" }).map((p) => p.nombre), ["nvidia"]);
+  assert.deepEqual(A.proveedores({}), []);
 });

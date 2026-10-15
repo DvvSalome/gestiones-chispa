@@ -1,7 +1,7 @@
 // El asistente de la tienda (Chispa): responde en el chat recomendando SOLO productos del catálogo real de
 // tienda.gestioneselectricas.com y ofrece el técnico de Gestiones cuando lo que lleva o busca pide instalación.
 //
-// Modelo: NVIDIA NIM primero (NVIDIA_NIM_KEY) y OpenRouter de respaldo (OPENROUTER_API_KEY), la misma cadena que usa
+// Modelo: OpenRouter primero (OPENROUTER_API_KEY) y NVIDIA NIM de respaldo (NVIDIA_NIM_KEY); PROVEEDORES cambia el orden. Es la cadena que usa
 // el FourG CRM (lib/llm.ts). Si un modelo no responde, tarda o devuelve algo que no sirve, pasa al siguiente; si se
 // niega por política, no se busca otro para esquivarla. Si no hay ninguno, igual muestra lo encontrado en el catálogo.
 //
@@ -17,13 +17,21 @@ const ORIGENES = (process.env.ORIGENES || "https://tienda.gestioneselectricas.co
 const TIEMPO = Number(process.env.IA_TIMEOUT_MS || 8000);
 const lista = (v, porDefecto) => (v || porDefecto).split(",").map((s) => s.trim()).filter(Boolean);
 
+/**
+ * Orden de los proveedores (PROVEEDORES, por defecto «openrouter,nvidia»): OpenRouter primero, NVIDIA de respaldo. Decidido el 2026-10-15: el endpoint
+ * compartido de NVIDIA deja modelos minutos sin responder (30 a 45 s) y OpenRouter contesta en ~1 s con gemini-2.5-flash; el costo son centavos por
+ * pregunta de un presupuesto que se comparte con ElectroScan. Un proveedor sin llave se omite; uno que no aparece en la lista va al final.
+ */
 export function proveedores(env = process.env) {
-  return [
+  const todos = [
     env.NVIDIA_NIM_KEY && { nombre: "nvidia", base: env.NVIDIA_NIM_BASE || "https://integrate.api.nvidia.com/v1", key: env.NVIDIA_NIM_KEY,
       modelos: lista(env.NVIDIA_NIM_MODELS, "google/gemma-4-31b-it,openai/gpt-oss-20b") },
     env.OPENROUTER_API_KEY && { nombre: "openrouter", base: env.OPENROUTER_BASE || "https://openrouter.ai/api/v1", key: env.OPENROUTER_API_KEY,
       modelos: lista(env.OPENROUTER_MODELS, "google/gemini-2.5-flash,openai/gpt-4o-mini") },
   ].filter(Boolean);
+  const orden = lista(env.PROVEEDORES, "openrouter,nvidia");
+  const puesto = (p) => { const i = orden.indexOf(p.nombre); return i === -1 ? orden.length : i; };
+  return todos.sort((a, b) => puesto(a) - puesto(b));   // estable: los que no aparecen conservan su orden
 }
 
 // ── Catálogo: el índice público de la tienda, en caché 10 minutos ─────────────────────────────────────────

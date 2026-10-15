@@ -47,10 +47,13 @@ for (const e of ESCENARIOS) {
 
 // respaldo: NVIDIA apuntando a un puerto muerto → tiene que responder OpenRouter
 if (process.env.OPENROUTER_API_KEY && process.env.NVIDIA_NIM_KEY) {
-  const r = await A.responder({ mensajes: [{ rol: "cliente", texto: "panel solar" }] }, { ...process.env, NVIDIA_NIM_BASE: "http://127.0.0.1:9" });
-  const ok = r.proveedor.startsWith("openrouter");
+  // OpenRouter va primero y NVIDIA de respaldo: se apaga OpenRouter a propósito y tiene que responder NVIDIA
+  A.reiniciarDegradados();
+  const r = await A.responder({ mensajes: [{ rol: "cliente", texto: "panel solar" }] }, { ...process.env, OPENROUTER_BASE: "http://127.0.0.1:9" });
+  const ok = r.proveedor.startsWith("nvidia");
   if (!ok) fallas++;
-  console.log(`${ok ? "✓" : "✗"} Respaldo: con NVIDIA caído respondió ${r.proveedor}\n`);
+  console.log(`${ok ? "✓" : "✗"} Respaldo: con OpenRouter caído respondió ${r.proveedor}\n`);
+  A.reiniciarDegradados();
 }
 
 // navegador: lo que recomendó para el sistema solar, al carrito de la tienda → oferta del técnico → nota del pedido
