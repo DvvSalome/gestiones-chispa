@@ -1,0 +1,52 @@
+{
+  "personaje": "Ingeniera",
+  "cuadro": {
+    "ancho": 200,
+    "alto": 200
+  },
+  "columnas": 24,
+  "acciones": {
+    "reposo": {
+      "fila": 0,
+      "cuadros": 24,
+      "fps": 12,
+      "bucle": true
+    },
+    "parpadeo": {
+      "fila": 1,
+      "cuadros": 8,
+      "fps": 16,
+      "bucle": false
+    },
+    "saludo": {
+      "fila": 2,
+      "cuadros": 18,
+      "fps": 12,
+      "bucle": false
+    },
+    "pensar": {
+      "fila": 3,
+      "cuadros": 24,
+      "fps": 12,
+      "bucle": true
+    },
+    "senalar": {
+      "fila": 4,
+      "cuadros": 16,
+      "fps": 12,
+      "bucle": false
+    },
+    "celebrar": {
+      "fila": 5,
+      "cuadros": 18,
+      "fps": 12,
+      "bucle": false
+    },
+    "asomarse": {
+      "fila": 6,
+      "cuadros": 16,
+      "fps": 14,
+      "bucle": false
+    }
+  }
+}
