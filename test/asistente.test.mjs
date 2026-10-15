@@ -203,18 +203,19 @@ test("una negativa por política que llega con HTTP de error tampoco se esquiva 
   assert.equal(llamadas.openrouter, antes, "no se probó con OpenRouter");
 });
 
-test("con TODOS los modelos caídos, una pregunta ya degradada no espera más que la correa corta y muestra el catálogo", async () => {
+test("con TODOS los modelos caídos, solo la primera pregunta espera; las siguientes salen al instante con lo del catálogo", async () => {
   const mock = await levantar(() => {});   // nadie responde nunca
-  const e = { NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: mock, NVIDIA_NIM_MODELS: "a,b", IA_TIMEOUT_MS: "500", IA_TIMEOUT_DEGRADADO_MS: "100" };
+  const e = { NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: mock, NVIDIA_NIM_MODELS: "a,b", IA_TIMEOUT_MS: "300" };
   let t0 = Date.now();
   const r1 = await A.responder(pregunta("panel solar"), e);
   const primera = Date.now() - t0;
   assert.equal(r1.proveedor, "catalogo");
-  assert.ok(primera >= 1000, `la primera paga el tiempo completo de cada modelo (${primera} ms)`);
+  assert.ok(primera >= 600, `la primera paga el tiempo completo de cada modelo (${primera} ms)`);
   assert.ok(r1.productos.length > 0, "igual se muestra lo encontrado en el catálogo");
   t0 = Date.now();
   const r2 = await A.responder(pregunta("panel solar"), e);
   const segunda = Date.now() - t0;
   assert.equal(r2.proveedor, "catalogo");
-  assert.ok(segunda < 500, `la segunda solo paga la correa corta de cada modelo (${segunda} ms)`);
+  assert.ok(r2.productos.length > 0);
+  assert.ok(segunda < 150, `la segunda ni intenta los modelos degradados (${segunda} ms)`);
 });
