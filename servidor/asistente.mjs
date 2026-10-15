@@ -90,9 +90,11 @@ const json = (texto) => { const m = String(texto || "").match(/\{[\s\S]*\}/); tr
  * Un modelo que se cuelga o falla se manda al FINAL de la fila durante un minuto: el proveedor de modelos a veces deja uno minutos sin responder
  * (se vio a gemma tardar 30 a 45 s mientras gpt-oss contestaba en 1 s). Sin esto cada pregunta esperaba el tiempo máximo del lento antes de probar
  * el siguiente (20 a 24 s por respuesta); ahora solo la primera paga esa espera y las demás van directo a un modelo que sí responde.
- * Pasado el minuto se vuelve a intentar con el original. Si todos están degradados se respeta el orden de siempre.
+ * Mientras está degradado se le da solo una correa corta (TIEMPO_DEGRADADO), así que aun con todos los modelos caídos una pregunta cuesta pocos
+ * segundos antes de mostrar lo del catálogo, en vez de la suma de todos los tiempos máximos.
  */
 const PENALIZACION_MS = 60_000;
+const TIEMPO_DEGRADADO = 2500;   // un modelo degradado se prueba con correa corta: si sigue mal cuesta poco, y si ya se recuperó se aprovecha de inmediato
 const degradados = new Map();   // "proveedor:modelo" → hasta cuándo (ms)
 const estaDegradado = (clave) => (degradados.get(clave) || 0) > Date.now();
 export function reiniciarDegradados() { degradados.clear(); }
@@ -101,14 +103,16 @@ async function preguntar(mensajes, env) {
   const fila = proveedores(env).flatMap((prov) => prov.modelos.map((modelo) => ({ prov, modelo, clave: `${prov.nombre}:${modelo}` })));
   fila.sort((a, b) => Number(estaDegradado(a.clave)) - Number(estaDegradado(b.clave)));   // estable: lo degradado va después, el resto conserva su orden
   const tiempo = Number(env.IA_TIMEOUT_MS) || TIEMPO;
+  const tiempoCorto = Number(env.IA_TIMEOUT_DEGRADADO_MS) || TIEMPO_DEGRADADO;
   for (const { prov, modelo, clave } of fila) {
     const inicio = Date.now();
+    const limite = estaDegradado(clave) ? Math.min(tiempo, tiempoCorto) : tiempo;
     try {
       const r = await fetch(`${prov.base}/chat/completions`, {
         method: "POST",
         headers: { authorization: `Bearer ${prov.key}`, "content-type": "application/json", "HTTP-Referer": TIENDA, "X-Title": "Chispa Gestiones" },
         body: JSON.stringify({ model: modelo, messages: mensajes, temperature: 0.2, max_tokens: 700 }),
-        signal: AbortSignal.timeout(tiempo),
+        signal: AbortSignal.timeout(limite),
       });
       const j = await r.json().catch(() => null);
       if (negado(j)) return { negado: true, proveedor: clave };   // una negativa por política no se esquiva, llegue con el HTTP que llegue
