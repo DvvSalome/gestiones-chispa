@@ -14,7 +14,7 @@ const { sugerirServicio } = require("../chispa-tecnico.js");
 
 const TIENDA = (process.env.TIENDA_URL || "https://tienda.gestioneselectricas.com").replace(/\/+$/, "");
 const ORIGENES = (process.env.ORIGENES || "https://tienda.gestioneselectricas.com").split(",").map((s) => s.trim());
-const TIEMPO = Number(process.env.IA_TIMEOUT_MS || 15000);
+const TIEMPO = Number(process.env.IA_TIMEOUT_MS || 8000);
 const lista = (v, porDefecto) => (v || porDefecto).split(",").map((s) => s.trim()).filter(Boolean);
 
 export function proveedores(env = process.env) {
@@ -72,6 +72,7 @@ const SISTEMA = `Eres Chispa, el asesor virtual de Gestiones Eléctricas (Barran
 Reglas:
 - Responde en español, cálido y profesional, en 1 a 3 frases cortas.
 - Recomienda SOLO productos de la lista CANDIDATOS, por su slug, como máximo 4. Elige los que mejor sirven para lo que pide; si ninguno es exacto, muestra los más cercanos: es mejor enseñar lo más parecido del catálogo que dejar a la persona sin nada.
+- Cada candidato trae al final su categoría: si el nombre O la categoría tiene que ver con lo que pide (por ejemplo «Materiales Puesta a Tierra» para una puesta a tierra), el producto sirve y lo recomiendas; no digas que no hay.
 - Si hay candidatos relacionados con lo que pide, recomienda SIEMPRE al menos uno, aunque falte algún dato. Si falta un dato clave (voltaje, potencia, calibre, uso), recomienda primero y después haz UNA pregunta corta para afinar. Nunca respondas solo con una pregunta cuando hay candidatos.
 - Nunca escribas precios, cantidades de dinero ni promesas de entrega: la tienda muestra el precio en cada tarjeta.
 - Si la persona va a instalar algo, dile que Gestiones Eléctricas también hace la instalación.
@@ -85,23 +86,37 @@ const negado = (j) => {
 };
 const json = (texto) => { const m = String(texto || "").match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null; } catch { return null; } };
 
+/**
+ * Un modelo que se cuelga o falla se manda al FINAL de la fila durante un minuto: el proveedor de modelos a veces deja uno minutos sin responder
+ * (se vio a gemma tardar 30 a 45 s mientras gpt-oss contestaba en 1 s). Sin esto cada pregunta esperaba el tiempo máximo del lento antes de probar
+ * el siguiente (20 a 24 s por respuesta); ahora solo la primera paga esa espera y las demás van directo a un modelo que sí responde.
+ * Pasado el minuto se vuelve a intentar con el original. Si todos están degradados se respeta el orden de siempre.
+ */
+const PENALIZACION_MS = 60_000;
+const degradados = new Map();   // "proveedor:modelo" → hasta cuándo (ms)
+const estaDegradado = (clave) => (degradados.get(clave) || 0) > Date.now();
+export function reiniciarDegradados() { degradados.clear(); }
+
 async function preguntar(mensajes, env) {
-  for (const prov of proveedores(env)) {
-    for (const modelo of prov.modelos) {
-      const inicio = Date.now();
-      try {
-        const r = await fetch(`${prov.base}/chat/completions`, {
-          method: "POST",
-          headers: { authorization: `Bearer ${prov.key}`, "content-type": "application/json", "HTTP-Referer": TIENDA, "X-Title": "Chispa Gestiones" },
-          body: JSON.stringify({ model: modelo, messages: mensajes, temperature: 0.2, max_tokens: 700 }),
-          signal: AbortSignal.timeout(TIEMPO),
-        });
-        const j = await r.json().catch(() => null);
-        if (negado(j)) return { negado: true, proveedor: `${prov.nombre}:${modelo}` };
-        const salida = json(j?.choices?.[0]?.message?.content);
-        if (r.ok && salida && typeof salida.texto === "string" && salida.texto.trim()) return { salida, proveedor: `${prov.nombre}:${modelo}`, ms: Date.now() - inicio };
-      } catch { /* cuelgue o red: al siguiente */ }
-    }
+  const fila = proveedores(env).flatMap((prov) => prov.modelos.map((modelo) => ({ prov, modelo, clave: `${prov.nombre}:${modelo}` })));
+  fila.sort((a, b) => Number(estaDegradado(a.clave)) - Number(estaDegradado(b.clave)));   // estable: lo degradado va después, el resto conserva su orden
+  const tiempo = Number(env.IA_TIMEOUT_MS) || TIEMPO;
+  for (const { prov, modelo, clave } of fila) {
+    const inicio = Date.now();
+    try {
+      const r = await fetch(`${prov.base}/chat/completions`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${prov.key}`, "content-type": "application/json", "HTTP-Referer": TIENDA, "X-Title": "Chispa Gestiones" },
+        body: JSON.stringify({ model: modelo, messages: mensajes, temperature: 0.2, max_tokens: 700 }),
+        signal: AbortSignal.timeout(tiempo),
+      });
+      const j = await r.json().catch(() => null);
+      if (negado(j)) return { negado: true, proveedor: clave };   // una negativa por política no se esquiva, llegue con el HTTP que llegue
+      if (!r.ok) { degradados.set(clave, Date.now() + PENALIZACION_MS); continue; }
+      degradados.delete(clave);
+      const salida = json(j?.choices?.[0]?.message?.content);
+      if (salida && typeof salida.texto === "string" && salida.texto.trim()) return { salida, proveedor: clave, ms: Date.now() - inicio };
+    } catch { degradados.set(clave, Date.now() + PENALIZACION_MS); /* cuelgue o red: al siguiente */ }
   }
   return null;
 }

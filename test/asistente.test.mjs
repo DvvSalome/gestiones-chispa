@@ -1,5 +1,5 @@
 // node --test test/  — el asistente sin llaves: tienda, NVIDIA y OpenRouter simulados en puertos locales.
-import { test, before, after } from "node:test";
+import { test, before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
@@ -35,6 +35,7 @@ before(async () => {
   A = await import("../servidor/asistente.mjs");
 });
 after(() => servidores.forEach((s) => s.close()));
+beforeEach(() => A.reiniciarDegradados());   // el estado «modelo degradado» es del módulo: cada prueba parte limpia
 
 const env = (extra = {}) => ({ NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: nvidia, NVIDIA_NIM_MODELS: "m1", OPENROUTER_API_KEY: "y", OPENROUTER_BASE: openrouter, OPENROUTER_MODELS: "m2", ...extra });
 const pregunta = (texto, carrito = []) => ({ mensajes: [{ rol: "cliente", texto }], carrito });
@@ -138,4 +139,66 @@ test("/api/chispa/vivo responde sin consultar el catálogo (healthcheck del cont
   const r = await fetch(`${base}/api/chispa/vivo`);
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { ok: true });
+});
+
+// ── Modelos lentos: se degradan al final de la fila (se vio a gemma tardar 30 a 45 s mientras gpt-oss contestaba en 1 s) ──
+const OK = '{"texto":"Te sirve este panel.","productos":["panel-550w"]}';
+
+test("un modelo que se cuelga pasa al final de la fila: solo la primera pregunta espera su tiempo máximo", async () => {
+  const vistos = [];
+  const mock = await levantar(async (req, res) => {
+    let cuerpo = ""; for await (const t of req) cuerpo += t;
+    const modelo = JSON.parse(cuerpo).model; vistos.push(modelo);
+    if (modelo === "lento") return;   // no responde nunca: la petición se corta por tiempo
+    responderJSON(res, 200, { choices: [{ message: { content: OK } }] });
+  });
+  const e = { NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: mock, NVIDIA_NIM_MODELS: "lento,rapido", IA_TIMEOUT_MS: "400" };
+  let t0 = Date.now();
+  const r1 = await A.responder(pregunta("panel solar"), e);
+  const primera = Date.now() - t0;
+  assert.equal(r1.proveedor, "nvidia:rapido");
+  assert.ok(primera >= 400, `la primera pregunta paga la espera del lento (${primera} ms)`);
+  t0 = Date.now();
+  const r2 = await A.responder(pregunta("panel solar"), e);
+  const segunda = Date.now() - t0;
+  assert.equal(r2.proveedor, "nvidia:rapido");
+  assert.ok(segunda < 300, `la segunda va directo al que responde (${segunda} ms)`);
+  assert.deepEqual(vistos, ["lento", "rapido", "rapido"], "la segunda pregunta ni siquiera tocó al modelo lento");
+});
+
+test("un modelo que responde error se degrada igual, y al reiniciar vuelve a su lugar", async () => {
+  const vistos = [];
+  const mock = await levantar(async (req, res) => {
+    let cuerpo = ""; for await (const t of req) cuerpo += t;
+    const modelo = JSON.parse(cuerpo).model; vistos.push(modelo);
+    if (modelo === "roto") return responderJSON(res, 503, { error: "sobrecargado" });
+    responderJSON(res, 200, { choices: [{ message: { content: OK } }] });
+  });
+  const e = { NVIDIA_NIM_KEY: "x", NVIDIA_NIM_BASE: mock, NVIDIA_NIM_MODELS: "roto,bueno" };
+  await A.responder(pregunta("panel solar"), e);
+  await A.responder(pregunta("panel solar"), e);
+  assert.deepEqual(vistos, ["roto", "bueno", "bueno"]);
+  A.reiniciarDegradados();
+  await A.responder(pregunta("panel solar"), e);
+  assert.deepEqual(vistos.slice(3), ["roto", "bueno"], "tras el minuto de penalización se vuelve a intentar con el primero");
+});
+
+test("un modelo degradado pasa después de los demás proveedores, no solo de sus hermanos", async () => {
+  comoNvidia = "falla";
+  contenidoOR = OK;
+  assert.equal((await A.responder(pregunta("panel solar"), env())).proveedor, "openrouter:m2");
+  comoNvidia = "bien";
+  assert.equal((await A.responder(pregunta("panel solar"), env())).proveedor, "openrouter:m2", "NVIDIA sigue degradado durante la penalización");
+  A.reiniciarDegradados();
+  assert.equal((await A.responder(pregunta("panel solar"), env())).proveedor, "nvidia:m1");
+});
+
+test("una negativa por política que llega con HTTP de error tampoco se esquiva con otro modelo", async () => {
+  const mock = await levantar((req, res) => responderJSON(res, 400, { error: { code: "content_policy_violation", message: "no" } }));
+  const antes = llamadas.openrouter;
+  contenidoOR = OK;
+  const r = await A.responder(pregunta("panel solar"), { ...env(), NVIDIA_NIM_BASE: mock });
+  assert.match(r.proveedor, /^nvidia:/);
+  assert.equal(r.productos.length, 0);
+  assert.equal(llamadas.openrouter, antes, "no se probó con OpenRouter");
 });
