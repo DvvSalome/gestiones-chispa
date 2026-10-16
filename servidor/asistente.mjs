@@ -85,7 +85,7 @@ Reglas:
 - Si hay candidatos relacionados con lo que pide, recomienda SIEMPRE al menos uno, aunque falte algún dato. Si falta un dato clave (voltaje, potencia, calibre, uso), recomienda primero y después haz UNA pregunta corta para afinar. Nunca respondas solo con una pregunta cuando hay candidatos.
 - Nunca escribas precios, cantidades de dinero ni promesas de entrega: la tienda muestra el precio en cada tarjeta.
 - Si la persona va a instalar algo, dile que Gestiones Eléctricas también hace la instalación.
-- Solo si NINGÚN candidato tiene relación con lo que pide, o lo que pide no tiene que ver con electricidad, no recomiendes nada: dilo y ofrece que un asesor le ayude por WhatsApp.
+- Solo si NINGÚN candidato tiene relación con lo que pide, o lo que pide no tiene que ver con electricidad, no recomiendes nada: dilo y ofrece que un asesor le ayude: puede tocar «Hablar con un asesor», al pie del chat.
 Responde SOLO con JSON: {"texto": "…", "productos": ["slug", …]}`;
 
 // No cambiar de proveedor para eludir una negativa de política (igual que el CRM).
@@ -150,7 +150,7 @@ export async function responder({ mensajes = [], carrito = [] }, env = process.e
   const elegidos = (respuesta?.salida?.productos || []).filter((s) => candidatos.some((c) => c.slug === s)).slice(0, 4).map((s) => porSlug.get(s));
   let texto = respuesta?.negado
     ? "En eso no te puedo ayudar por aquí. Si es sobre materiales o instalaciones eléctricas, cuéntame qué necesitas."
-    : respuesta?.salida?.texto || (candidatos.length ? "Esto es lo que encontré en el catálogo:" : "No encontré eso en el catálogo. Un asesor te ayuda por WhatsApp.");
+    : respuesta?.salida?.texto || (candidatos.length ? "Esto es lo que encontré en el catálogo:" : "No encontré eso en el catálogo. Toca «Hablar con un asesor» (al pie del chat) y te ayudan.");
   // los precios los pone la tienda: una frase con una cifra de dinero se quita
   texto = texto.split(/(?<=[.!?])\s+/).filter((f) => !/\$\s?\d|\d[\d.]*\s?(pesos|cop)\b/i.test(f)).join(" ") || "Esto es lo que encontré en el catálogo:";
   // sin respuesta de ningún modelo se muestra lo del catálogo; si se negó o eligió nada, no se muestra nada
@@ -219,7 +219,7 @@ export function servidor(env = process.env) {
       if (!mensajes.some((m) => m.rol === "cliente")) return enviar(400, { error: "falta la pregunta" });
       enviar(200, await responder({ mensajes, carrito }, env));
     } catch (e) {
-      enviar(500, { error: "No pude responder ahora. Escríbenos por WhatsApp." });
+      enviar(500, { error: "No pude responder ahora. Inténtalo de nuevo en unos segundos." });
     }
   });
 }
