@@ -60,13 +60,29 @@ const SINONIMOS = {
   explosion: "nema anti explosion", fibra: "fibra optica red", red: "red trenzada acometida",
 };
 const VACIAS = new Set("de del la las el los un una unos unas para por con sin que y o en mi mis tu su al lo como necesito quiero busco tienen tienes hay me algo".split(" "));
+/** «tuberías» → tuberías, tubería; «cables» → cables, cabl; «luces» → luz; «interruptores» → interruptor. De la forma más específica a la más corta. */
+const raices = (w) => {
+  const r = [w];
+  if (w.endsWith("ces")) r.push(`${w.slice(0, -3)}z`);
+  if (w.endsWith("es")) r.push(w.slice(0, -2));
+  if (w.endsWith("s")) r.push(w.slice(0, -1));
+  return [...new Set(r)].filter((x) => x === w || x.length >= 3);
+};
 export function buscar(productos, consulta, cuantos = 12) {
   const palabras = plano(consulta).split(/[^a-z0-9/".-]+/).filter((w) => w.length > 1 && !VACIAS.has(w));
-  const terminos = [...new Set(palabras.flatMap((w) => [w, ...(SINONIMOS[w] || "").split(" ")]).filter(Boolean))];
+  const nombres = productos.map((p) => ({ p, nombre: plano(p.nombre), donde: plano(`${p.sub} ${p.categoria}`) }));
+  const aparece = (t) => nombres.some((x) => x.nombre.includes(t) || x.donde.includes(t));
+  // Por cada palabra se usan las formas (plural, singular…) que el catálogo conoce; una palabra que no aparece en ningún producto (un color, una marca
+  // que no tenemos) se deja fuera en vez de dejar la búsqueda sin resultados. Los sinónimos se buscan con cualquiera de sus formas («tuberias» → «tuberia»).
+  const terminos = [...new Set(palabras.flatMap((w) => {
+    const formas = raices(w);
+    const propias = formas.filter(aparece);
+    const sinonimos = (SINONIMOS[formas.find((f) => SINONIMOS[f])] || "").split(" ");
+    return [...propias, ...sinonimos].filter(Boolean);
+  }))];
   if (!terminos.length) return [];
-  return productos
-    .map((p) => {
-      const nombre = plano(p.nombre), donde = plano(`${p.sub} ${p.categoria}`);
+  return nombres
+    .map(({ p, nombre, donde }) => {
       const puntos = terminos.reduce((s, t) => s + (nombre.includes(t) ? 2 : 0) + (donde.includes(t) ? 1.5 : 0), 0);
       return { p, puntos: puntos + (p.precio ? 0.1 : 0) };
     })
@@ -136,7 +152,8 @@ export async function responder({ mensajes = [], carrito = [] }, env = process.e
   const productos = await catalogo();
   const ultima = [...mensajes].reverse().find((m) => m.rol === "cliente")?.texto || "";
   // candidatos: lo que pide ahora, y si no alcanza, lo que venía pidiendo
-  let candidatos = buscar(productos, ultima);
+  const propios = buscar(productos, ultima);   // lo que coincide con lo que pide AHORA (el contexto de antes solo completa)
+  let candidatos = propios;
   if (candidatos.length < 4) candidatos = [...new Set([...candidatos, ...buscar(productos, mensajes.filter((m) => m.rol === "cliente").map((m) => m.texto).join(" "))])].slice(0, 12);
   const porSlug = new Map(productos.map((p) => [p.slug, p]));
   const lista = candidatos.map((p) => `- ${p.slug} | ${p.nombre} | ${p.sub || p.categoria}${p.precio ? "" : " | se cotiza"}`).join("\n") || "(ninguno)";
@@ -147,15 +164,24 @@ export async function responder({ mensajes = [], carrito = [] }, env = process.e
     ...mensajes.slice(-10).map((m) => ({ role: m.rol === "chispa" ? "assistant" : "user", content: String(m.texto).slice(0, 600) })),
   ], env);
 
-  const elegidos = (respuesta?.salida?.productos || []).filter((s) => candidatos.some((c) => c.slug === s)).slice(0, 4).map((s) => porSlug.get(s));
+  // el modelo a veces devuelve el slug con otra capitalización o espacios: se resuelve contra los candidatos, sin repetir
+  const slugDe = new Map(candidatos.map((c) => [c.slug.toLowerCase(), c.slug]));
+  let elegidos = [...new Set((respuesta?.salida?.productos || []).map((x) => slugDe.get(String(x).trim().toLowerCase())).filter(Boolean))].slice(0, 4).map((x) => porSlug.get(x));
   let texto = respuesta?.negado
     ? "En eso no te puedo ayudar por aquí. Si es sobre materiales o instalaciones eléctricas, cuéntame qué necesitas."
     : respuesta?.salida?.texto || (candidatos.length ? "Esto es lo que encontré en el catálogo:" : "No encontré eso en el catálogo. Toca «Hablar con un asesor» (al pie del chat) y te ayudan.");
   // los precios los pone la tienda: una frase con una cifra de dinero se quita
   texto = texto.split(/(?<=[.!?])\s+/).filter((f) => !/\$\s?\d|\d[\d.]*\s?(pesos|cop)\b/i.test(f)).join(" ") || "Esto es lo que encontré en el catálogo:";
+  // La regla del prompt es «recomienda primero y pregunta después»: si el modelo solo pregunta («¿para qué uso?») o promete tarjetas («te recomiendo estos») pero ningún
+  // slug sirvió, la persona se quedaría sin nada. Se muestran los que SÍ coinciden con lo que pidió ahora, salvo que el propio modelo diga que no los tiene.
+  const niega = /\b(no (tenemos|contamos|manejamos|encontr[eé]|hay|dispongo)|lo siento|lamentablemente|desafortunadamente)\b/i.test(texto);
+  if (!respuesta?.negado && !elegidos.length && propios.length && !niega) elegidos = propios.slice(0, 3);
   // sin respuesta de ningún modelo se muestra lo del catálogo; si se negó o eligió nada, no se muestra nada
   const mostrar = elegidos.length ? elegidos : respuesta ? [] : candidatos.slice(0, 4);
-  const servicio = sugerirServicio([...carrito, ...mostrar.map((p) => ({ nombre: p.nombre, categoria: p.categoria, cantidad: 1, codigo: p.codigo }))]);
+  // El técnico se ofrece por lo que se muestra ahora; el carrito solo cuenta si la persona habla de instalar o de un técnico (si no, el mismo
+  // ofrecimiento se repetía en cada respuesta mientras el carrito tuviera, por ejemplo, un transformador).
+  const habla = /instal|montaj|t[eé]cnic|conect|puesta en servicio|poner en servicio|mano de obra|obra/i.test(ultima);
+  const servicio = sugerirServicio([...(habla ? carrito : []), ...mostrar.map((p) => ({ nombre: p.nombre, categoria: p.categoria, cantidad: 1, codigo: p.codigo }))]);
   return {
     texto, productos: mostrar.map(({ slug, nombre, precio, foto, url, categoria }) => ({ slug, nombre, precio, foto, url, categoria })),
     servicio: servicio && { id: servicio.id, titulo: servicio.titulo, motivo: servicio.motivo },

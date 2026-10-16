@@ -264,3 +264,68 @@ test("con CHISPA_KEY el límite es por la IP real de cada persona, aunque todas 
   assert.equal(codigos.at(-1), 429, "la persona 77 se pasó de 30 por minuto");
   assert.equal((await post("203.0.113.78")).status, 200, "la persona 78, desde la misma IP de la tienda, no queda bloqueada");
 });
+
+// ── Producción 15-oct: «tuberias» y «cables azules» no encontraban nada; el bot decía «te recomiendo estos» sin tarjetas; el técnico se repetía ──
+const CATALOGO_REAL = [
+  { slug: "tubo-pvc-1-2", nombre: "Tubo Pvc 1/2\"", codigo: "T1", categoria: "Tubería Conduit PVC", sub: "", precio: 8000 },
+  { slug: "tubo-imc-1", nombre: "Tubo IMC 1\" x 3Mts", codigo: "T2", categoria: "Tubería Metálica e IMC", sub: "", precio: 30000 },
+  { slug: "cable-fv-6", nombre: "Cable Fotovoltaico 6Mm2", codigo: "C1", categoria: "Energía Solar Fotovoltaica", sub: "", precio: 4000 },
+  { slug: "cable-red-2x1", nombre: "Cable Red Trenzada 2X1/0+1/0", codigo: "C2", categoria: "Baja, Media y Alta Tensión", sub: "", precio: 9000 },
+  { slug: "interruptor-dimmer", nombre: "INTERRUPTOR DIMMER", codigo: "I1", categoria: "Domótica", sub: "", precio: 50000 },
+  { slug: "medidor-tri", nombre: "Medidor trifasico", codigo: "M1", categoria: "Medidores", sub: "", precio: 400000 },
+  { slug: "trafo-tri-15", nombre: "TRANSFORMADOR TRIFASICO 15 KVA", codigo: "TR1", categoria: "Transformadores", sub: "", precio: null },
+];
+const slugs = (q) => A.buscar(CATALOGO_REAL, q).map((p) => p.slug);
+
+test("buscar entiende plurales: «tuberias», «cables», «interruptores» encuentran lo mismo que en singular", () => {
+  assert.deepEqual(slugs("tuberias").sort(), slugs("tuberia").sort());
+  assert.ok(slugs("tuberias").includes("tubo-pvc-1-2") && slugs("tuberias").includes("tubo-imc-1"), "las dos tuberías del catálogo");
+  assert.ok(slugs("cables").includes("cable-fv-6") && slugs("cables").includes("cable-red-2x1"));
+  assert.ok(slugs("interruptores").includes("interruptor-dimmer"));
+  assert.ok(slugs("Necesito TUBERÍAS para mi proyecto").includes("tubo-pvc-1-2"), "con tilde, mayúsculas y relleno");
+});
+
+test("una palabra que el catálogo no conoce (un color) no deja la búsqueda sin resultados", () => {
+  const r = slugs("cables azules");
+  assert.ok(r.includes("cable-fv-6") && r.includes("cable-red-2x1"), "muestra los cables aunque no haya color en el catálogo");
+  assert.equal(slugs("xyzzy plugh").length, 0, "lo que no existe sigue sin resultados");
+});
+
+test("con plural y singular a la vez, «medidores trifasicos» pone primero el medidor, no el transformador", () => {
+  assert.equal(slugs("medidores trifasicos")[0], "medidor-tri");
+});
+
+test("si el modelo dice «te recomiendo estos» pero no devuelve slugs válidos, se muestran los que coinciden con lo que se pidió", async () => {
+  comoNvidia = "falla";
+  contenidoOR = '{"texto":"Entendido. Te recomiendo estos productos para tu proyecto.","productos":[]}';
+  const r = await A.responder(pregunta("necesito paneles"), env());
+  assert.ok(r.productos.length >= 1, "no se queda sin tarjetas");
+  assert.equal(r.productos[0].slug, "panel-550w");
+  contenidoOR = '{"texto":"Entendido. Te recomiendo estos productos.","productos":["Panel-550W "]}';
+  const r2 = await A.responder(pregunta("necesito paneles"), env());
+  assert.deepEqual(r2.productos.map((p) => p.slug), ["panel-550w"], "el slug con otra capitalización o espacios sí se resuelve");
+});
+
+test("si el modelo solo pregunta pero hay productos que coinciden, se muestran (recomendar primero, preguntar después); si dice que no los tiene, no se inventan", async () => {
+  comoNvidia = "falla";
+  contenidoOR = '{"texto":"¿Para qué voltaje lo necesitas?","productos":[]}';
+  const r = await A.responder(pregunta("necesito paneles"), env());
+  assert.equal(r.productos[0]?.slug, "panel-550w", "pregunta de aclaración + coincidencia → tarjeta (el panel primero)");
+  contenidoOR = '{"texto":"Lo siento, no tenemos eso en el catálogo.","productos":[]}';
+  assert.equal((await A.responder(pregunta("necesito paneles"), env())).productos.length, 0, "«no tenemos» se respeta");
+  contenidoOR = '{"texto":"¿Para qué voltaje lo necesitas?","productos":[]}';
+  assert.equal((await A.responder(pregunta("xyzzy plugh"), env())).productos.length, 0, "sin coincidencias no hay tarjetas");
+});
+
+test("el técnico no se repite por lo que ya hay en el carrito: solo si se habla de instalar o si lo que se muestra lo pide", async () => {
+  comoNvidia = "falla";
+  const carrito = [{ nombre: "Panel solar 550W monocristalino", categoria: "Energía Solar Fotovoltaica", cantidad: 4, codigo: "PAN-550" }, { nombre: "Inversor híbrido 5kW", categoria: "Energía Solar Fotovoltaica", cantidad: 1, codigo: "INV-5" }];
+  contenidoOR = '{"texto":"Lo siento, no tenemos eso.","productos":[]}';
+  const sinHablar = await A.responder(pregunta("tuberias", carrito), env());
+  assert.equal(sinHablar.servicio, null, "pedir tuberías con paneles en el carrito no vuelve a ofrecer la instalación solar");
+  const hablando = await A.responder(pregunta("¿quién me instala todo esto?", carrito), env());
+  assert.equal(hablando.servicio?.id, "solar", "si pregunta por la instalación, el carrito sí cuenta");
+  contenidoOR = '{"texto":"Te recomiendo estos.","productos":["panel-550w","inversor-5kw"]}';
+  const mostrando = await A.responder(pregunta("paneles e inversor"), env());
+  assert.equal(mostrando.servicio?.id, "solar", "lo que se muestra ahora sigue ofreciendo la instalación");
+});
