@@ -178,10 +178,16 @@ export async function responder({ mensajes = [], carrito = [] }, env = process.e
   if (!respuesta?.negado && !elegidos.length && propios.length && !niega) elegidos = propios.slice(0, 3);
   // sin respuesta de ningún modelo se muestra lo del catálogo; si se negó o eligió nada, no se muestra nada
   const mostrar = elegidos.length ? elegidos : respuesta ? [] : candidatos.slice(0, 4);
-  // El técnico se ofrece por lo que se muestra ahora; el carrito solo cuenta si la persona habla de instalar o de un técnico (si no, el mismo
-  // ofrecimiento se repetía en cada respuesta mientras el carrito tuviera, por ejemplo, un transformador).
-  const habla = /instal|montaj|t[eé]cnic|conect|puesta en servicio|poner en servicio|mano de obra|obra/i.test(ultima);
-  const servicio = sugerirServicio([...(habla ? carrito : []), ...mostrar.map((p) => ({ nombre: p.nombre, categoria: p.categoria, cantidad: 1, codigo: p.codigo }))]);
+  // El técnico solo se ofrece cuando se habla de instalar: la persona lo pide, o Chispa lo menciona en su respuesta («si necesitas ayuda con la instalación…»).
+  // Antes salía por solo mostrar productos (dos cables fotovoltaicos → «instalación del sistema solar») o por lo que ya había en el carrito (un transformador
+  // reaparecía en cada respuesta). Con esa conversación en marcha, se evalúa lo que se muestra y, solo si la persona habla de instalar, también el carrito.
+  const instalar = /instal|montaj|t[eé]cnic|conect|puesta en servicio|poner en servicio|mano de obra/i;
+  // En la respuesta cuenta solo si OFRECE el servicio («también hacemos la instalación», «ayuda con la instalación»), no si pregunta «¿qué tipo de instalación vas a hacer?».
+  const ofreceInstalar = /\binstal(a|an|amos)\b/i.test(texto) || /\b(ofrec\w*|hac\w*|realiz\w*|prest\w*|ayuda con|servicio de)\b[^.?!]{0,40}\b(instal|montaj)/i.test(texto);
+  const habla = instalar.test(ultima);
+  const servicio = habla || ofreceInstalar
+    ? sugerirServicio([...(habla ? carrito : []), ...mostrar.map((p) => ({ nombre: p.nombre, categoria: p.categoria, cantidad: 1, codigo: p.codigo }))])
+    : null;
   return {
     texto, productos: mostrar.map(({ slug, nombre, precio, foto, url, categoria }) => ({ slug, nombre, precio, foto, url, categoria })),
     servicio: servicio && { id: servicio.id, titulo: servicio.titulo, motivo: servicio.motivo },

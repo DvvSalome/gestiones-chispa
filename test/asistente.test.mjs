@@ -326,6 +326,9 @@ test("el técnico no se repite por lo que ya hay en el carrito: solo si se habla
   const hablando = await A.responder(pregunta("¿quién me instala todo esto?", carrito), env());
   assert.equal(hablando.servicio?.id, "solar", "si pregunta por la instalación, el carrito sí cuenta");
   contenidoOR = '{"texto":"Te recomiendo estos.","productos":["panel-550w","inversor-5kw"]}';
+  const soloMostrar = await A.responder(pregunta("paneles e inversor"), env());
+  assert.equal(soloMostrar.servicio, null, "mostrar productos sin hablar de instalar no ofrece el técnico");
+  contenidoOR = '{"texto":"Te recomiendo estos. Gestiones también hace la instalación.","productos":["panel-550w","inversor-5kw"]}';
   const mostrando = await A.responder(pregunta("paneles e inversor"), env());
-  assert.equal(mostrando.servicio?.id, "solar", "lo que se muestra ahora sigue ofreciendo la instalación");
+  assert.equal(mostrando.servicio?.id, "solar", "si Chispa menciona la instalación, lo que se muestra ofrece el técnico");
 });
